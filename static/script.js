@@ -224,7 +224,7 @@ water.App.prototype.opacitySliders = function() {
   $("#aoiControl").on("slideStop", function(slideEvt) {
 	water.instance.setLayerOpacity('AoI_fill', slideEvt.value);
   });
-  // in case of split up permanent and flooded water layers:
+  // in case of split up permanent and temporary water layers:
   /*
   $("#waterPermControl").on("slide", function(slideEvt) {
 	water.instance.setLayerOpacity('water_permanent', slideEvt.value);
@@ -232,14 +232,14 @@ water.App.prototype.opacitySliders = function() {
   $("#waterPermControl").on("slideStop", function(slideEvt) {
 	water.instance.setLayerOpacity('water_permanent', slideEvt.value);
   });
-  $("#waterFloodControl").on("slide", function(slideEvt) {
-	water.instance.setLayerOpacity('water_flooded', slideEvt.value);
+  $("#waterTempControl").on("slide", function(slideEvt) {
+	water.instance.setLayerOpacity('water_temporary', slideEvt.value);
   });
-  $("#waterFloodControl").on("slideStop", function(slideEvt) {
-	water.instance.setLayerOpacity('water_flooded', slideEvt.value);
+  $("#waterTempControl").on("slideStop", function(slideEvt) {
+	water.instance.setLayerOpacity('water_temporary', slideEvt.value);
   });
   */
-  // in case of merged permanent and flooded water layers:
+  // in case of merged permanent and temporary water layers:
   $("#waterControl").on("slide", function(slideEvt) {
 	water.instance.setLayerOpacity('water', slideEvt.value);
   });
@@ -263,7 +263,7 @@ water.App.prototype.getExpertParams = function() {
 	month_index: parseInt($("#monthsControl").val()),
 	defringe: $(".defringe-input").is(':checked'),
 	pcnt_perm: parseFloat($('.percentile-input-perm').val()),
-	pcnt_flood: parseFloat($('.percentile-input-flood').val()),
+	pcnt_temp: parseFloat($('.percentile-input-temp').val()),
 	water_thresh: parseFloat($('.water-threshold-input').val()),
 	veg_thresh: parseFloat($('.veg-threshold-input').val()),
 	hand_thresh: parseFloat($('.hand-threshold-input').val()),
@@ -294,7 +294,7 @@ water.App.prototype.getAllParams = function() {
 water.App.prototype.refreshImage = function() {
   
   var name = 'water';
-  //var name1 = 'water_flooded';
+  //var name1 = 'water_temporary';
   //var name2 = 'water_permanent';
   
   // obtain params
@@ -310,7 +310,7 @@ water.App.prototype.refreshImage = function() {
 	  this.currentLayer['month_index'] === params['month_index'] && 
 	  this.currentLayer['defringe'] === params['defringe'] && 
 	  this.currentLayer['pcnt_perm'] === params['pcnt_perm'] && 
-	  this.currentLayer['pcnt_flood'] === params['pcnt_flood'] &&
+	  this.currentLayer['pcnt_temp'] === params['pcnt_temp'] &&
 	  this.currentLayer['water_thresh'] === params['water_thresh'] && 
 	  this.currentLayer['veg_thresh'] === params['veg_thresh'] && 
 	  this.currentLayer['hand_thresh'] === params['hand_thresh'] && 
@@ -351,7 +351,7 @@ water.App.prototype.refreshImage = function() {
       dataType: "json",
       success: function (data) {
 		water.instance.setWaterMap(data.eeMapId, data.eeToken, name)
-		//water.instance.setWaterMap(data.eeMapId_flooded, data.eeToken_flooded, name1)
+		//water.instance.setWaterMap(data.eeMapId_temporary, data.eeToken_temporary, name1)
         //water.instance.setWaterMap(data.eeMapId_permanent, data.eeToken_permanent, name2)
       },
       error: function (data) {
@@ -421,8 +421,8 @@ water.App.prototype.showLoadingAlert = function(name) {
     $(".aoiAlert").show();
   } else if (name == 'water_permanent') {
     $(".waterPermAlert").show();
-  } else if (name == 'water_flooded') {
-    $(".waterFloodAlert").show();
+  } else if (name == 'water_temporary') {
+    $(".waterTempAlert").show();
   } else {
     return
   }
@@ -435,8 +435,8 @@ water.App.prototype.removeLoadingAlert = function(name) {
     $(".aoiAlert").hide();
   } else if (name == 'water_permanent') {
     $(".waterPermAlert").hide();
-  } else if (name == 'water_flooded') {
-    $(".waterFloodAlert").hide();
+  } else if (name == 'water_temporary') {
+    $(".waterTempAlert").hide();
   } else {
     return
   }

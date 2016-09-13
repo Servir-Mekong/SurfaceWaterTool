@@ -228,12 +228,12 @@ isindex {
   background: #D3D3D3;
 }
 
-.water #waterFloodControlSlider {
+.water #waterTempControlSlider {
   margin-left: 47px;
   width: 60px;
 }
 
-.water #waterFloodControlSlider .slider-selection {
+.water #waterTempControlSlider .slider-selection {
   background: #D3D3D3;
 }
 
@@ -242,7 +242,7 @@ isindex {
   font-style: italic;
 }
 
-.water .waterFloodAlert {
+.water .waterTempAlert {
   margin-left: 40px;
   font-style: italic;
 }
@@ -407,7 +407,7 @@ isindex {
 }
 
 .water .percentile-input-perm,
-.water .percentile-input-flood {
+.water .percentile-input-temp {
   width: 20%;
   display: inline;
 }
