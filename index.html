@@ -332,7 +332,7 @@
 								Since this substantially reduces the total amount of images within each map, this does require a longer time period. Instead of 
 								the usual 90 days minimum, the minimum time period when climatology is activated is 3 years. Even so, it is still possible that 
 								a certain month will not have sufficient satellite coverage to show accurate information over the entire area. 
-								Since 12 maps are calculated instead of 1, this can also slow down the application a lot. Please consider these things when activating this option.<br>
+								Since 12 maps are calculated instead of 1, this can also slow down the application a lot. Please consider these things when activating this option.<br><br>
 								When activated, a slider for the different months will appear on the lower right of the screen.
 								</span>
 							</div>
@@ -340,7 +340,7 @@
 							<script>
 							$(".climatology-info-button").click(function () {
 								$(".climatology-info").toggleClass("climatology-info-shown");
-								$(".climatology-info-shown").css("top", $(".expert-input").position().top);
+								//$(".climatology-info-shown").css("top", $(".expert-input").position().top);
 							});
 							</script>
 						</div>
@@ -362,7 +362,7 @@
 							<script>
 							$(".defringe-info-button").click(function () {
 								$(".defringe-info").toggleClass("defringe-info-shown");
-								$(".defringe-info-shown").css("top", $(".expert-input").position().top);
+								//$(".defringe-info-shown").css("top", $(".expert-input").position().top);
 							});
 							</script>
 						</div>
@@ -374,7 +374,7 @@
 							<div class="percentile-info">
 								<span>
 								The percentile value controls the how the complete stack of satellite images is reduced to a single image
-								<a href="https://developers.google.com/earth-engine/reducers_image_collection" target="_blank"> (see GEE documentation for more info)</a>
+								<a href="https://developers.google.com/earth-engine/reducers_image_collection" target="_blank"> (see GEE documentation for more info on this)</a>
 								. This parameter can take a value between 0 and 100, but in the lower ranges the effect of shadows will deteriorate results, while clouds will do the same in the higher ranges. 
 								The value on the left is used to calculate permanent water, the value on the right for flooded water. The value for permanent water should always exceed the one for flooded water.
 								For permanent water, it is recommended to stay within the range of 15 - 60. For flooded water, it is recommended to stay within the range of 5 - 15.
@@ -384,7 +384,7 @@
 							<script>
 							$(".percentile-info-button").click(function () {
 								$(".percentile-info").toggleClass("percentile-info-shown");
-								$(".percentile-info-shown").css("top", $(".expert-input").position().top);
+								//$(".percentile-info-shown").css("top", $(".expert-input").position().top);
 							});
 							</script>
 						</div>
@@ -394,15 +394,16 @@
 							<button class="water-threshold-info-button btn btn-default btn-xs">i</button>
 							<div class="water-threshold-info">
 								<span>
-								The water threshold value controls when something is classified as water. The parameter can take a value between -1 and 1, with lower values resulting in more areas identified as being water. 
-								However, it is recommended to stay within the range 0.0 - 0.4.
+								The water threshold value controls when something is classified as water from the Modified Normalized Difference Water Index (MNDWI). For more information on MNDWI,
+								check out the relevant paper by <a href="http://www.tandfonline.com/doi/abs/10.1080/01431160600589179" target="_blank">Xu (2006)</a>. The parameter can take a value 
+								between -1 and 1, with lower values resulting in more areas identified as being water. However, it is recommended to stay within the range of 0.0 - 0.4.
 								</span>
 							</div>
 							<!-- toggle the info panel and make sure that it is not shown outside the screen -->
 							<script>
 							$(".water-threshold-info-button").click(function () {
 								$(".water-threshold-info").toggleClass("water-threshold-info-shown");
-								$(".water-threshold-info-shown").css("top", $(".expert-input").position().top);
+								//$(".water-threshold-info-shown").css("top", $(".expert-input").position().top);
 							});
 							</script>
 						</div>
@@ -413,33 +414,37 @@
 							<div class="veg-threshold-info">
 								<span>
 								The vegetation threshold value controls when something is classified as vegetation, which is used to mask out false-positives from the water detection algorithm. 
-								The latter especially occurs in areas with dark vegetation. The parameter can take a value between -1 and 1, but it is recommended to stay within the range 0.2 - 0.6.
+								The latter especially occurs in areas with dark vegetation. This uses the Normalized Difference Vegetation Index (NDVI), which is often used to study vegetation.<br>
+								A little background information on NDVI can be found, amongst others, at <a href="https://en.wikipedia.org/wiki/Normalized_Difference_Vegetation_Index" target="_blank">Wikipedia</a>.
+								The parameter can take a value between -1 and 1, but it is recommended to stay within the range of 0.2 - 0.6.
 								</span>
 							</div>
 							<!-- toggle the info panel and make sure that it is not shown outside the screen -->
 							<script>
 							$(".veg-threshold-info-button").click(function () {
 								$(".veg-threshold-info").toggleClass("veg-threshold-info-shown");
-								$(".veg-threshold-info-shown").css("top", $(".expert-input").position().top);
+								//$(".veg-threshold-info-shown").css("top", $(".expert-input").position().top);
 							});
 							</script>
 						</div>
 						<div class="input-block hand-threshold">
 							<span class="expert-input-block-label">HAND threshold:</span>
-							<input type="number" min="0" max="9999" step="1" value="12" name="hand-threshold" class="hand-threshold-input form-control">
+							<input type="number" min="0" max="9999" step="1" value="25" name="hand-threshold" class="hand-threshold-input form-control">
 							<button class="hand-threshold-info-button btn btn-default btn-xs">i</button>
 							<div class="hand-threshold-info">
 								<span>
-								HAND (Height Above Nearest Drainage) is a method to normalize land elevation values relative to streams. 
-								This makes it possible to use a single value to mask out false-positives related to elevation, such as 
-								hill shades and snow. The parameter can take a value between 0 and 9999 meter. It is recommended to choose a value of at least 8 meter.
+								HAND (Height Above Nearest Drainage) is a method to normalize land elevation values relative to streams. For more information about HAND see the relevant papers by
+								<a href="http://www.sciencedirect.com/science/article/pii/S003442570800120X" target="_blank">Renn&#243 et al. (2008)</a> and 
+								<a href="http://www.sciencedirect.com/science/article/pii/S0022169411002599" target="_blank">Nobre et al. (2011)</a>. This makes it possible to use a single value 
+								to mask out false-positives related to elevation, such as hill shades (these can appear similar to water in the processed satellite images). The parameter can take 
+								a value between 0 and 9999 meter. It is recommended to choose a value of at least 10 meter.
 								</span>
 							</div>
 							<!-- toggle the info panel and make sure that it is not shown outside the screen -->
 							<script>
 							$(".hand-threshold-info-button").click(function () {
 								$(".hand-threshold-info").toggleClass("hand-threshold-info-shown");
-								$(".hand-threshold-info-shown").css("top", $(".expert-input").position().top);
+								//$(".hand-threshold-info-shown").css("top", $(".expert-input").position().top);
 							});
 							</script>
 						</div>
@@ -451,7 +456,7 @@
 								<span>
 								The cloud threshold value controls when something is classified as a cloud, which will subsequently be removed from the analysis. This is done to reduce the impact of clouds on the algorithm.
 								The parameter can take a value between 0 and 1, with higher values making it less likely that something is classified as a cloud. This has an effect on the percentile calculation, as cloud masking
-								is carried out before that step. As such, a lower cloud threshold could permit the use of a higher percentile value, and vice versa.
+								is carried out before that step. As such, a lower cloud threshold could permit the use of a higher percentile value, and vice versa.<br>
 								NOTE: this parameter cannot be changed as of now. It will be made active in the future.
 								</span>
 							</div>
@@ -459,7 +464,7 @@
 							<script>
 							$(".cloud-threshold-info-button").click(function () {
 								$(".cloud-threshold-info").toggleClass("cloud-threshold-info-shown");
-								$(".cloud-threshold-info-shown").css("top", $(".expert-input").position().top);
+								//$(".cloud-threshold-info-shown").css("top", $(".expert-input").position().top);
 							});
 							</script>
 						</div>
@@ -474,7 +479,7 @@
 								$(".percentile-input-flood").val('8');
 								$(".water-threshold-input").val('0.3');
 								$(".veg-threshold-input").val('0.35');
-								$(".hand-threshold-input").val('12');
+								$(".hand-threshold-input").val('25');
 								$(".cloud-threshold-input").val('0.0');
 							});
 							</script>

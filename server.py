@@ -130,7 +130,8 @@ app = webapp2.WSGIApplication([
 CountriesLowerMekong_basin = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2hZl6o5-Ljw_Dglc4")
 
 # Height Above Nearest Drainage (HAND) map for Mekong region
-HAND = ee.Image('users/gena/ServirMekong/SRTM_30_Asia_Mekong_hand')
+#HAND = ee.Image('users/gena/ServirMekong/SRTM_30_Asia_Mekong_hand')  # old/obsolete version, Mekong basin only (not complete countries)
+HAND = ee.Image('users/gena/GlobalHAND/30m/hand-5000').clip(CountriesLowerMekong_basin)  # global version, clipped to AoI
 
 # helper function: filter images
 def filterImages (image_collection, bands, bounds, dates):
