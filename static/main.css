@@ -445,7 +445,7 @@ isindex {
 .water .cloud-threshold-info-shown {
   display: block;
   position: fixed;
-  top: 50%;
+  top: 56%;
   left: 490px;
   transform: translate(0%, 0%);
   padding: 15px;
