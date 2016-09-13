@@ -7,5 +7,5 @@ Dependencies (not included here) are:
 - oauth2client
 
 This tool is still in development. The two most important additions will be:
-1. Export data within drawn region to Google Drive
-2. Demo to help users understand the application
+- Export data within drawn region to Google Drive
+- Demo to help users understand the application
