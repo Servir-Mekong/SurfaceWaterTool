@@ -10,5 +10,4 @@ Dependencies (not included here) are:
 - httplib2
 - oauth2client 
 
-The Python and JavaScript client libraries for calling the Earth Engine API can be found here: 
-<a href="https://github.com/google/earthengine-api/"</a>. A lot more information about Earth Engine is listed here: <a href="https://developers.google.com/earth-engine/"</a>.
+The Python and JavaScript client libraries for calling the Earth Engine API can be found here: <a  href="https://github.com/google/earthengine-api/">https://github.com/google/earthengine-api</a>. A lot more information about Google Earth Engine is listed here: <a href="https://developers.google.com/earth-engine/">https://developers.google.com/earth-engine</a>.
