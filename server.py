@@ -133,6 +133,9 @@ CountriesLowerMekong_basin = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2h
 #HAND = ee.Image('users/gena/ServirMekong/SRTM_30_Asia_Mekong_hand')  # old/obsolete version, Mekong basin only (not complete countries)
 HAND = ee.Image('users/gena/GlobalHAND/30m/hand-5000').clip(CountriesLowerMekong_basin)  # global version, clipped to AoI
 
+# assign large (positive!) HAND value to value found in strange horizontal lines (-99999), so it is masked unless user specifies a very large threshold
+HAND = HAND.where(HAND.lt(0), 1000)
+
 # helper function: filter images
 def filterImages (image_collection, bands, bounds, dates):
     return image_collection.select(bands[0], bands[1]).filterBounds(bounds).filterDate(dates[0], ee.Date(dates[1]).advance(1, 'day'))
