@@ -406,11 +406,7 @@ isindex {
   cursor: pointer;
 }
 
-.water .percentile-input-perm {
-  width: 20%;
-  display: inline;
-}
-
+.water .percentile-input-perm,
 .water .percentile-input-flood {
   width: 20%;
   display: inline;
