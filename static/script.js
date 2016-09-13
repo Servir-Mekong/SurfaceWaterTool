@@ -39,6 +39,7 @@ water.App = function() {
   this.opacitySliders();
   this.expertSubmit();
   this.climatologySlider();
+  this.initExport();
   
   // Load the basic background maps.
   this.loadBasicMaps();
@@ -73,9 +74,9 @@ water.App.prototype.loadBasicMaps = function() {
     url: "/get_basic_maps",
     dataType: "json",
     success: function (data) {
-	  water.instance.showBasicMaps(data.eeMapId_border, data.eeToken_border, name1);
-	  water.instance.showBasicMaps(data.eeMapId_fill, data.eeToken_fill, name2);
+	  water.instance.showBasicMap(data.eeMapId_fill, data.eeToken_fill, name2);
 	  water.instance.setLayerOpacity('AoI_fill', parseFloat($("#aoiControl").val()));
+	  water.instance.showBasicMap(data.eeMapId_border, data.eeToken_border, name1);
     },
     error: function (data) {
       console.log(data.responseText);
@@ -84,7 +85,7 @@ water.App.prototype.loadBasicMaps = function() {
 }
 
 // Push map with mapId and token obtained from EE Python
-water.App.prototype.showBasicMaps = function(eeMapId, eeToken, name) {
+water.App.prototype.showBasicMap = function(eeMapId, eeToken, name) {
   this.showLoadingAlert(name);
   //var mapType = water.App.getEeMapType(eeMapId, eeToken, name);  // obsolete, using ee.MapLayerOverlay instead
   var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
@@ -440,6 +441,27 @@ water.App.prototype.removeLoadingAlert = function(name) {
     return
   }
 }
+
+// ---------------------------------------------------------------------------------- //
+// Export functionality
+// ---------------------------------------------------------------------------------- //
+
+// -- PLACEHOLDER UNTIL EXPORT FUNCTIONALITY IS FINISHED --
+water.App.prototype.initExport = function() {
+  // Temporary click functionality, remove when export functionality is finished!!
+  var export_click_count = 0;
+  $('.export').click(function () {
+	if (export_click_count == 0) {
+	  $('.warnings span').text('Export functionality is not implemented yet! This will be activated in the future. Click the export button again to remove this message.');
+	  $('.warnings').show();
+	  export_click_count = 1;
+	} else {
+	  $('.warnings span').text('');
+	  $('.warnings').hide();
+	  export_click_count = 0;
+	}
+  });
+};
 
 // ---------------------------------------------------------------------------------- //
 // Static helpers and constants
