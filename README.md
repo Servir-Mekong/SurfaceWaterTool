@@ -13,3 +13,5 @@ Dependencies (not included here) are:
 - oauth2client 
 
 The Python and JavaScript client libraries for calling the Earth Engine API can be found here: <a  href="https://github.com/google/earthengine-api/">https://github.com/google/earthengine-api</a>. More information about Google Earth Engine is listed here: <a href="https://developers.google.com/earth-engine/">https://developers.google.com/earth-engine</a>.
+
+The SurfaceWaterTool was developed, in part, by checking out the code of one of the Earth Engine application demos at <a href="https://github.com/google/earthengine-api/tree/master/demos/export-to-drive">https://github.com/google/earthengine-api/tree/master/demos/export-to-drive</a>.
