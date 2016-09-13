@@ -88,25 +88,25 @@ class GetWaterMapHandler(webapp2.RequestHandler):
         month_index  = self.request.params.get('month_index')
         defringe     = self.request.params.get('defringe')
         pcnt_perm    = self.request.params.get('pcnt_perm')
-        pcnt_flood   = self.request.params.get('pcnt_flood')
+        pcnt_temp    = self.request.params.get('pcnt_temp')
         water_thresh = self.request.params.get('water_thresh')
         ndvi_thresh  = self.request.params.get('veg_thresh')
         hand_thresh  = self.request.params.get('hand_thresh')
         
         # calculate new map and obtain mapId/token
-        water   = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_flood, water_thresh, ndvi_thresh, hand_thresh)
+        water   = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh)
         mapid   = water.getMapId()
         content = {
             'eeMapId': mapid['mapid'],
             'eeToken': mapid['token']
         }
         #mapid_permanent_water = water['permanent'].getMapId()
-        #mapid_flooded_water   = water['flooded'].getMapId()
+        #mapid_temporary_water   = water['temporary'].getMapId()
         #content = {
         #    'eeMapId_permanent': mapid_permanent_water['mapid'],
         #    'eeToken_permanent': mapid_permanent_water['token'],
-        #    'eeMapId_flooded': mapid_flooded_water['mapid'],
-        #    'eeToken_flooded': mapid_flooded_water['token']
+        #    'eeMapId_temporary': mapid_temporary_water['mapid'],
+        #    'eeToken_temporary': mapid_temporary_water['token']
         #}
         
         # send content using json
@@ -216,14 +216,14 @@ def defringeLandsat(img):
     return img
 
 # water detection algorithm
-def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_flood, water_thresh, ndvi_thresh, hand_thresh):
+def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh):
     
     # create date range for image filtering
     date_range = [time_start, time_end]
     
     # percentiles
     percentile_permanent   = float(pcnt_perm)
-    percentile_flood       = float(pcnt_flood)
+    percentile_temporary   = float(pcnt_temp)
     
     # MNDWI threshold (water detection)
     water_index_threshold  = float(water_thresh)
@@ -255,42 +255,42 @@ def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, de
         
     # calculate percentile images
     prcnt_img_permanent = images.reduce(ee.Reducer.percentile([percentile_permanent])).rename(STD_NAMES)
-    prcnt_img_flood     = images.reduce(ee.Reducer.percentile([percentile_flood])).rename(STD_NAMES)
+    prcnt_img_temporary = images.reduce(ee.Reducer.percentile([percentile_temporary])).rename(STD_NAMES)
 
     # MNDWI
     MNDWI_permanent = prcnt_img_permanent.normalizedDifference(['green', 'swir1'])
-    MNDWI_flood     = prcnt_img_flood.normalizedDifference(['green', 'swir1'])
+    MNDWI_temporary = prcnt_img_temporary.normalizedDifference(['green', 'swir1'])
 
     # water
     water_permanent = MNDWI_permanent.gt(water_index_threshold)
-    water_flood     = MNDWI_flood.gt(water_index_threshold)
+    water_temporary = MNDWI_temporary.gt(water_index_threshold)
     
     # get NDVI masks
     NDVI_permanent_pcnt = prcnt_img_permanent.normalizedDifference(['nir', 'red'])
-    NDVI_flooded_pcnt   = prcnt_img_flood.normalizedDifference(['nir', 'red'])
+    NDVI_temporary_pcnt = prcnt_img_temporary.normalizedDifference(['nir', 'red'])
     NDVI_mask_permanent = NDVI_permanent_pcnt.gt(NDVI_threshold)
-    NDVI_mask_flooded   = NDVI_flooded_pcnt.gt(NDVI_threshold)
+    NDVI_mask_temporary = NDVI_temporary_pcnt.gt(NDVI_threshold)
     
     # get HAND mask
     HAND_mask           = HAND.gt(HAND_threshold)
     
     # combined NDVI and HAND masks
     NDVI_and_HAND_mask_permanent = NDVI_mask_permanent.add(HAND_mask)
-    NDVI_and_HAND_mask_flooded   = NDVI_mask_flooded.add(HAND_mask)
+    NDVI_and_HAND_mask_temporary = NDVI_mask_temporary.add(HAND_mask)
     
     # apply NDVI and HAND masks
     water_permanent_NDVImasked = water_permanent.eq(1).And(NDVI_mask_permanent.eq(0))
     water_permanent_HANDmasked = water_permanent.eq(1).And(HAND_mask.eq(0))
     water_permanent_masked     = water_permanent.eq(1).And(NDVI_and_HAND_mask_permanent.eq(0))
     
-    water_flood_NDVImasked     = water_flood.eq(1).And(NDVI_mask_flooded.eq(0))
-    water_flood_HANDmasked     = water_flood.eq(1).And(HAND_mask.eq(0))
-    water_flood_masked         = water_flood.eq(1).And(NDVI_and_HAND_mask_flooded.eq(0))
-    #water_flood_masked = water_flood_masked.subtract(water_permanent_masked)    # for separate layers
+    water_temporary_NDVImasked     = water_temporary.eq(1).And(NDVI_mask_temporary.eq(0))
+    water_temporary_HANDmasked     = water_temporary.eq(1).And(HAND_mask.eq(0))
+    water_temporary_masked         = water_temporary.eq(1).And(NDVI_and_HAND_mask_temporary.eq(0))
+    #water_temporary_masked = water_temporary_masked.subtract(water_permanent_masked)    # for separate layers
 
-    # single image with permanent and flooded water
-    #water_complete = water_permanent.add(water_flood).clip(CountriesLowerMekong_basin)
-    water_complete = water_permanent_masked.add(water_flood_masked).clip(CountriesLowerMekong_basin)
+    # single image with permanent and temporary water
+    #water_complete = water_permanent.add(water_temporary).clip(CountriesLowerMekong_basin)
+    water_complete = water_permanent_masked.add(water_temporary_masked).clip(CountriesLowerMekong_basin)
     
     # colour rendering
     water_style = '\
@@ -308,7 +308,7 @@ def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, de
     #    <ColorMapEntry color="#756bb1" quantity="1.0" label="-1"/>\
     #  </ColorMap>\
     #</RasterSymbolizer>';
-    #water_style_flooded = '\
+    #water_style_temporary = '\
     #<RasterSymbolizer>\
     #  <ColorMap extended="true" >\
     #    <ColorMapEntry color="#ffffff" quantity="-1.0" label="-1"/>\
@@ -319,7 +319,7 @@ def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, de
     
     return water_complete.updateMask(water_complete).sldStyle(water_style)
     #return {'permanent': water_permanent_masked.updateMask(water_permanent_masked).clip(CountriesLowerMekong_basin).sldStyle(water_style_permanent), 
-    #        'flooded': water_flood_masked.updateMask(water_flood_masked).clip(CountriesLowerMekong_basin).sldStyle(water_style_flooded)}
+    #        'temporary': water_temporary_masked.updateMask(water_temporary_masked).clip(CountriesLowerMekong_basin).sldStyle(water_style_temporary)}
 
 # ------------------------------------------------------------------------------------ #
 # Additional functions
