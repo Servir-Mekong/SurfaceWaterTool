@@ -30,7 +30,7 @@ of the Earth Engine application demos at [https://github.com/google/earthengine-
 
 ## Running
 
-First, you need to build ecodash.js from the Clojurescript files in cljs:
+First, you need to build surface-water.js from the Clojurescript files in cljs:
 
 ```bash
 $ cd cljs
