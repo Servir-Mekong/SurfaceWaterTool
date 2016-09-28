@@ -1,0 +1,6 @@
+.nrepl*
+cljs/target/
+ee/
+httplib2/
+oauth2client/
+*.pyc
