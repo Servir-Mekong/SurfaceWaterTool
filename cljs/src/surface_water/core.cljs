@@ -1,8 +1,8 @@
-(ns ecodash.core
+(ns surface-water.core
   (:require [goog.dom :as dom]
             [goog.string :as str]
             [reagent.core :as r]
-            [ecodash.application :as app]))
+            [surface-water.application :as app]))
 
 ;;=============
 ;; Page Header
@@ -45,24 +45,24 @@
 
 (defn home-page [page-visibility]
   [:div#home page-visibility
-   [:h1 "Eco Dash"]
-   [:h2 "Spatio-temporal EVI Mapping"]
-   [:h3 "Explore historic vegetation change."]
+   [:h1 "Surface Water Tool"]
+   [:h2 "Surface Water Detection and Mapping"]
+   [:h3 "Explore regional droughts, floods, and baseline conditions."]
    [:hr]
    [:p
-    "Eco Dash is a collaborative effort between its developers and its "
-    "community of users. We welcome suggestions for improvements on our "
-    [:a {:href "https://github.com/Servir-Mekong/ecodash/issues" :target "_blank"}
+    "The Surface Water Tool is a collaborative effort between its developers and "
+    "its community of users. We welcome suggestions for improvements on our "
+    [:a {:href "https://github.com/Servir-Mekong/SurfaceWaterTool/issues"
+         :target "_blank"}
      "Github"]
     " issues page."]])
 
 (defn about-page [page-visibility]
   [:div#about page-visibility
-   [:h1 "About Eco Dash"]
-   [:p (str "Eco Dash is an open-source, web GIS tool created by SERVIR-Mekong"
-            " for exploring the change in Enhanced Vegetation Index (EVI) of"
-            " countries and their provinces in the Mekong River region of"
-            " southeast Asia.")]
+   [:h1 "About the Surface Water Tool"]
+   [:p (str "The Surface Water Tool is an open-source, web GIS tool created by"
+            " SERVIR-Mekong for exploring the historic change in surface water"
+            " levels throughout the Mekong River region of southeast Asia.")]
    [:hr]
    [:img {:src "/static/images/servir.png"}]
    [:img {:src "/static/images/usaid.png"}]
@@ -91,7 +91,6 @@
 ;; CLJS Entry Point
 ;;==================
 
-(defn ^:export main [ee-map-id ee-token country-polygons province-polygons]
+(defn ^:export main []
   (r/render [page-header] (dom/getElement "pageheader"))
-  (r/render [page-content] (dom/getElement "pagecontent"))
-  (app/init ee-map-id ee-token country-polygons province-polygons))
+  (r/render [page-content] (dom/getElement "pagecontent")))

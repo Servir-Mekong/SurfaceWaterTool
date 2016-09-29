@@ -1,4 +1,4 @@
-(ns ecodash.application
+(ns surface-water.application
   (:require [goog.dom :as dom]
             [goog.string :as str]
             [reagent.core :as r]

@@ -30,7 +30,7 @@
         (cljs-repl)
         (cljs :optimizations    :none
               :source-map       true
-              :compiler-options {:asset-path "static/ecodash.out"})
+              :compiler-options {:asset-path "static/surface_water.out"})
         (target :dir #{"target"})))
 
 (deftask prod []
