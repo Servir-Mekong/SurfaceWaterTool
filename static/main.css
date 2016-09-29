@@ -1,512 +1,590 @@
-html,
-body,
-.water,
-.water .map {
-  height: 100%;
-  margin: 0px;
-  padding: 0px;
-  overflow: hidden;
-}
-
-body,
-input,
-textarea,
-select,
-button,
-keygen,
-isindex {
-  font-family: 'Roboto', Arial, sans-serif;
-  font-size: 14px;
-}
-
-.water .banner {
-  margin: 10px;
-  right:0;
-  background-color:none;
-  width:80%;
-  height:28px;
-  position: absolute;
-  z-index: 1;
-}
-
-.water .ui {
-  position: absolute;
-  top: 70px;
-  left: 10px;
-  width: 470px;
-  z-index: 1;
-}
-
-.water .panel {
-  border-radius: 2px;
-  background-color: white;
-  padding: 15px;
-  box-shadow: 0px 0px 5px gray;
-  overflow: auto;
-  margin-bottom: 0;
-}
-
-.water header {
-  padding-bottom: 5px;
-}
-
-.water h1 {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-.water .collapse-button {
-  display: inline;
-  font-size: 20px;
-  float: right;
-  cursor: pointer;
-}
-
-.water .settings-button {
-  display: none;
-  background-color: white;
-  width: 40px;
-  font-size: 30px;
-  font-weight: bold;
-  text-align: center;
-  box-shadow: 0px 0px 5px gray;
-  cursor: pointer
-}
+/********************/
+/* Universal Styles */
+/********************/
 
-.water .general-info-button {
-  margin-right: 10px;
+body {
+    font-family:Open Sans;
+    font-size:16px;
+    height:100vh;
+    background-image:url(images/shutterstock_56592433-VN_Landscape.jpg);
+    -webkit-background-size:cover;
+    -moz-background-size:cover;
+    -o-background-size:cover;
+    background-size:cover;
 }
 
-.water .demo-arrow-general-info{
-  display: none;
-  position: relative;
-  right: -22%;
-  top: 5px;
-  z-index:2;
+section, header, nav {
+    display:block;
 }
 
-.water .general-info {
-  display: none;
-}
+/*****************/
+/* Header Styles */
+/*****************/
 
-.water .general-info-shown {
-  display: inline;
-  position: absolute;
-  left: 480px;
-  padding: 15px;
-  margin-top: -5px;
-  width: 450px;
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px gray;
-  overflow: auto;
-  margin-bottom: 0;
-  font-size: 14px;
-  font-weight: normal;
+#pageheader {
+    position:fixed;
+    top:0px;
+    left:0px;
+    height:90px;
+    width:100%;
 }
 
-.water .demo-info {
-  display: none;
-  position: fixed;
-  padding: 15px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px grey;
-  text-align: center;
-  font-size: 14px;
-  font-weight: normal;
-  overflow: auto;
-  z-index: 3;
+header {
+    height:100%;
+    width:100%;
 }
 
-.water .demo-info-text{
-  margin-bottom: 10px;
+#logos {
+    position:relative;
+    margin:0px;
+    width:100%;
+    height:55px;
+    background-color:#fff;
 }
 
-.water .demo-button-next{
-  position: relative;
-  left: -10%;
+#logos img#usaid {
+    position:absolute;
+    top:5px;
+    left:30px;
+    width:150px;
 }
 
-.water .demo-button-exit{
-  position: relative;
-  /*right: -10%;*/
+#logos img#nasa {
+    position:absolute;
+    top:0px;
+    left:210px;
+    width:60px;
 }
 
-.water .demo-info-clicks{
-  display: none;
-  position: fixed;
-  padding: 15px;
-  top: 75%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px grey;
-  text-align: center;
-  font-size: 14px;
-  font-weight: normal;
-  overflow: auto;
-  z-index: 3;
+#logos img#google {
+    position:absolute;
+    top:10px;
+    left:300px;
+    width:120px;
 }
 
-.water .demo-info-click1{
-  display: none;
+#logos img#adpc {
+    position:absolute;
+    top:9px;
+    left:450px;
+    width:80px;
 }
 
-.water .demo-info-click2{
-  display: none;
+#logos img#servir {
+    position:absolute;
+    top:12px;
+    right:30px;
+    width:250px;
 }
 
-.water .demo-info-click3{
-  display: none;
+nav {
+    position:relative;
+    margin:0px;
+    width:100%;
+    height:35px;
+    background-color:#3a3a3a;
+    color:#eee;
 }
 
-.water .demo-info-click-final{
-  display: none;
+nav ul {
+    position:absolute;
+    top:6px;
+    left:30px;
 }
 
-.water .instructions {
-  margin-bottom: 10px;
+nav ul li {
+    display:inline;
+    list-style-type:none;
+    padding:7px 10px;
+    cursor:pointer;
 }
 
-.water .legend-border {
-  border-style: solid;
-  border-color: white;
-  border-width: 2px;
-  margin: -2px;
+nav ul li.highlight {
+    text-shadow:0px 0px 4px #fff;
 }
 
-.water .legend {
-  margin-top: 0px;
-}
+/***************/
+/* Body Styles */
+/***************/
 
-.water .legend-text {
-  font-weight: bold;
-  margin-bottom: 5px;
+#pagecontent {
+    position:fixed;
+    top:90px;
+    left:0px;
+    height:calc(100vh - 90px);
+    width:100%;
+    background-color:rgba(255,255,255,0.2);
 }
 
-.water .legend-value {
-  margin-bottom:15px;
-  display:flex;
-  align-items:center;
+#pagecontent a:link,
+#pagecontent a:visited,
+#pagecontent a:active {
+    color:#444;
+    text-decoration:none;
 }
 
-.water .legend-block {
-  min-width:40px;
-  height:20px;
-  margin-right:10px;
-  border:#bbb solid 1px;
-  background-color:#D3D3D3;
+#pagecontent a:hover {
+    color:#444;
+    text-shadow: 0px 0px 4px #333;
 }
 
-.water #aoiControlSlider {
-  margin-left: 71px;
-  width: 60px;
+#pagecontent #all-pages {
+    height:100%;
+    width:100%;
 }
 
-.water #aoiControlSlider .slider-selection {
-  background: #D3D3D3;
+/*************/
+/* Home Page */
+/*************/
+
+#home {
+    position:absolute;
+    right:5rem;
+    height:100%;
+    width:350px;
+    padding:2rem;
+    background:rgba(255, 255, 255, 0.8);
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
+    -ms-filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
 }
 
-.water .aoiAlert {
-  margin-left: 40px;
-  font-style: italic;
+#home h1 {
+    margin-top:10px;
+    padding:0.5rem 0.5rem 0.5rem 1rem;
+    font-size:3rem;
+    font-weight:bold;
+    color:gray;
+    line-height:100%;
+    text-align:center;
 }
 
-/* Slider and Loading Alert for single water layers */
-/*
-.water #waterPermControlSlider {
-  margin-left: 30px;
-  width: 60px;
+#home h2 {
+    margin-bottom:10px;
+    padding:0.5rem 0.5rem 0.5rem 1rem;
+    font-size:2.2rem;
+    font-weight:400;
+    color:gray;
+    line-height:110%;
+    text-align:center;
 }
 
-.water #waterPermControlSlider .slider-selection {
-  background: #D3D3D3;
+#home h3 {
+    padding:0.5rem 0.5rem 0.75rem 1rem;
+    color:#3C948B;
+    font-family:Open Sans;
+    font-weight:400;
+    font-size:1.1rem;
+    font-style:normal;
 }
+
+#home p {
+    padding:0.5rem;
+}
+
+/**************/
+/* About Page */
+/**************/
 
-.water #waterTempControlSlider {
-  margin-left: 47px;
-  width: 60px;
+#about {
+    position:absolute;
+    right:5rem;
+    height:100%;
+    width:350px;
+    padding:2rem;
+    background:rgba(255, 255, 255, 0.8);
+    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
+    -ms-filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
 }
+
+#about h1 {
+    font-size:1.2rem;
+    font-weight:bold;
+    padding:0.5rem;
+    color:gray;
+}
 
-.water #waterTempControlSlider .slider-selection {
-  background: #D3D3D3;
+#about p {
+    padding:0.5rem;
 }
 
-.water .waterPermAlert {
-  margin-left: 40px;
-  font-style: italic;
+#about p#copyright {
+    clear:both;
+    padding:0.5rem;
+    width:100%;
+    text-align:center;
 }
 
-.water .waterTempAlert {
-  margin-left: 40px;
-  font-style: italic;
+#about img {
+    float:left;
+    height:35px;
+    padding:0.5rem;
 }
-*/
 
-/* Slider and Loading Alert for merged layer */
-.water #waterControlSlider {
-  margin-left: 30px;
-  width: 60px;
+/****************************************/
+/* Application Page Toplevel Components */
+/****************************************/
+
+#ecodash {
+    position:relative;
+    height:100%;
+    width:100%;
 }
 
-.water #waterControlSlider .slider-selection {
-  background: #D3D3D3;
+#ecodash #map {
+    position:absolute;
+    top:0px;
+    left:0px;
+    height:100%;
+    width:100%;
 }
 
-.water .waterAlert {
-  margin-left: 40px;
-  font-style: italic;
+#ecodash #ui {
+    position:absolute;
+    top:0px;
+    right:0px;
+    height:100%;
+    width:30%;
+    background-color:white;
+    padding:0.5rem;
 }
 
-.water .controls {
-  display: flex;
-  flex-flow: row wrap;
-  align-items: flex-end;
+#ecodash #settings-button {
+    position:absolute;
+    top:0px;
+    right:0px;
+    width:34px;
+    font-size:30px;
+    font-weight:bold;
+    text-align:center;
+    background-color:white;
+    box-shadow:0px 0px 5px gray;
+    cursor:pointer;
+    border-bottom-left-radius:3px;
 }
 
-.water .inputs {
-  display: inline-block;
-  flex-grow: 8;
+#ecodash #general-info {
+    position:absolute;
+    top:10px;
+    right:55px;
+    width:450px;
+    padding:15px;
+    border-radius:3px;
+    background-color:white;
+    box-shadow:0px 0px 5px gray;
+    font-size:14px;
+    z-index:100;
 }
 
-.water .btn.export {
-  display: inline-block;
-  margin-left: 10px;
+#ecodash #general-info h1 {
+    font-size:16px;
+    font-weight:bold;
+    margin-bottom:2px;
 }
 
-.water .input-block {
-  display: block;
-  margin-top: 7px;
+#ecodash #legend {
+    position:absolute;
+    left:0px;
+    bottom:55px;
+    width:80px;
+    background-color:white;
+    padding:5px;
+    border-top-right-radius:3px;
 }
 
-.water .input-block.date {
-  margin-bottom: 10px;
+#ecodash #legend h2 {
+    font-size:0.9rem;
+    font-weight:bold;
+    color:gray;
+    text-align:center;
+    margin:4px;
 }
 
-.water .input-block.region {
-  height: 22px;
+#ecodash #legend table td {
+    font-size:0.8rem;
 }
 
-.water .input-block-label {
-  font-weight: normal;
-  display: inline-block;
-  width: 65px;
+#ecodash #legend table td:last-child {
+    padding-left:5px;
 }
 
-.water .date-type-picker input[type=radio] {
-  vertical-align: top;
-  margin-top: 2px;
+#ecodash #legend table td img {
+    height:100px;
 }
 
-.water .date-type-picker label {
-  font-style: italic;
-  font-weight: normal;
+#ecodash #opacity {
+    position:absolute;
+    left:0px;
+    bottom:0px;
+    height:45px;
+    width:80px;
+    background-color:white;
+    padding:5px;
+}
+
+#ecodash #opacity p {
+    font-size:0.8rem;
+    color:#333;
+    text-align:center;
 }
 
-.water .date-type-picker .or {
-  padding: 0 .3em;
+#ecodash #opacity input {
+    position:absolute;
+    left:5;
+    top:25px;
+    width:80px;
+    height:22px;
+    outline:none;
+    overflow:hidden;
+    pointer-events:none;
+    cursor:pointer;
 }
 
-.water .period_slice {
-  margin-left: 10px;
-  margin-right: 10px;
+#ecodash #opacity input::-webkit-slider-thumb {
+    position:relative;
+    z-index:1;
+    outline:0;
+    pointer-events:all;
 }
 
-.water .dateSubmit {
-  margin-left: 10px;
+#ecodash #opacity input::-moz-range-thumb {
+    position:relative;
+    z-index:10;
+    -moz-appearance:none;
+    width:9px;
+    pointer-events:all;
 }
 
-.water .range-picker,
-.water .average-picker, {
-  display: block;
+#ecodash #opacity input::-moz-range-track {
+    position:relative;
+    z-index:-1;
+    background-color:rgba(100,100,100,1);
+    border:0;
 }
 
-.water .filename {
-  width: 59%;
-  display: inline;
+#ecodash #opacity input[type=range]::-moz-focus-outer {
+    border:0;
 }
 
-.water .date-picker {
-  display: inline-block;
-  width: 26%;
+#ecodash p#feedback {
+    position:absolute;
+    bottom:0;
+    left:45%;
+    width:7.2rem;
+    height:1.2rem;
+    border-top-left-radius:3px;
+    border-top-right-radius:3px;
+    background-color:white;
+    padding:5px;
+    font-size:0.8rem;
+    text-align:center;
+    box-shadow:0px 0px 5px gray;
 }
+
+/***********************************/
+/* Application Page Sidebar Header */
+/***********************************/
 
-.water .date-picker-2 {
-  display: inline-block;
-  width: 26%;
+#ecodash #ui header {
+    height:1.5rem;
+    margin-bottom:0.5rem;
+    border-bottom:2px solid #666;
 }
 
-.water .region .message {
-  font-style: italic;
-  color: gray;
+#ecodash #ui header h1 {
+    display:inline;
+    font-size:1.2rem;
+    font-weight:bold;
+    color:gray;
 }
 
-.water .region .message-drawing,
-.water .region .message-selected {
-  display: none;
+#ecodash #ui header #collapse-button {
+    display:inline;
+    float:right;
+    margin-right:10px;
+    cursor:pointer;
 }
 
-.water .region.selected .message,
-.water .region.drawing .message {
-  display: none;
+#ecodash #ui header #info-button {
+    display:inline;
+    float:right;
+    margin:2px 10px 0px 0px;
+    padding:0px 3px;
+    background-image:linear-gradient(rgb(255,255,255) 0px, rgb(224,224,224) 100%);
+    background-position:0% 0%;
+    background-repeat:repeat-x;
+    border:1.25px solid rgb(204,204,204);
+    border-radius:3px;
+    box-shadow:rgba(255,255,255,0.15) 0px 1px 0px 0px inset,
+               rgba(0,0,0,0.075) 0px 1px 1px 0px;
+    font-size:12px;
+    color:rgb(51,51,51);
+    font-weight:400;
+    line-height:16px;
+    text-shadow:rgb(255,255,255) 0px 1px 0px;
+    cursor:pointer;
 }
 
-.water .region.drawing .message-drawing {
-  display: inline;
+/*********************************/
+/* Application Page Map Controls */
+/*********************************/
+
+#ecodash #ui #controls {
+    height:95%;
+    overflow:scroll;
 }
 
-.water .region.selected .message-selected {
-  display: inline;
-  color: green;
-  font-style: normal;
+#ecodash #ui #controls h2 {
+    font-size:1rem;
+    font-weight:bold;
+    color:gray;
+    margin-bottom:5px;
 }
 
-.water .region.selected .message-selected .clear {
-  color: black;
+#ecodash #ui #controls h3 {
+    font-size:0.8rem;
+    font-weight:bold;
+    color:gray;
+    margin:5px 0px;
 }
 
-.water .expert-toggle {
-  display: flex;
-  flex-flow: row nowrap;
-  align-items: flex-end;
-  margin-top: 15px;
+#ecodash #ui #controls input[type=button] {
+    height:28px;
+    margin:2% 0% 2% 31%;
+    font-size:0.8rem;
+    color:#333;
 }
 
-.water .expert-message {
-  font-weight: bold;
+#ecodash #ui #controls ul {
+    height:28px;
+    margin-left:10%;
 }
 
-.water .expert-instructions {
-  font-weight: bold;
-  font-style: italic;
+#ecodash #ui #controls ul li {
+    display:inline;
+    list-style-type:none;
+    padding:7px 10px;
 }
 
-.water .expert-input {
-  display: none;
-  margin-top: 15px;
-  overflow-y: auto;
+#ecodash #ui #controls ul li input[type=radio] {
+    height:100%;
+    vertical-align:middle;
 }
 
-.water .expert-input-block-label {
-  font-weight: normal;
-  display: inline-block;
-  width: 65px;
-  font-size: 12px;
+#ecodash #ui #controls ul li label {
+    height:100%;
+    vertical-align:middle;
+    margin-left:5px;
+    font-size:0.8rem;
+    color:#333;
 }
 
-.water .climatology-input,
-.water .defringe-input {
-  width: 25px;
-  height: 25px;
-  cursor: pointer;
+#ecodash #ui #controls p#polygon {
+    margin-left:12%;
+    padding:5px;
+    font-size:0.8rem;
+    color:#333;
 }
 
-.water .percentile-input-perm,
-.water .percentile-input-temp {
-  width: 20%;
-  display: inline;
+#ecodash #ui #controls p#polygon em {
+    font-style:italic;
 }
 
-.water .water-threshold-input,
-.water .veg-threshold-input,
-.water .hand-threshold-input,
-.water .cloud-threshold-input {
-  width: 20%;
-  display: inline;
+#ecodash #ui #controls #chart {
+    height:200px;
+    width:385px;
 }
 
-.water .climatology-info-button,
-.water .defringe-info-button {
-  position: relative;
-  bottom: 8px;
+/*****************************/
+/* Multi-Range Slider Widget */
+/*****************************/
+
+.range-slider {
+    position:relative;
+    width:200px;
+    height:45px;
+    margin-left:20%;
 }
 
-.water .climatology-info,
-.water .defringe-info,
-.water .percentile-info,
-.water .water-threshold-info,
-.water .veg-threshold-info,
-.water .hand-threshold-info,
-.water .cloud-threshold-info {
-  display: none;
+.range-slider p {
+    font-size:0.8rem;
+    color:#333;
+    text-align:center;
 }
 
-.water .climatology-info-shown,
-.water .defringe-info-shown,
-.water .percentile-info-shown,
-.water .water-threshold-info-shown,
-.water .veg-threshold-info-shown,
-.water .hand-threshold-info-shown,
-.water .cloud-threshold-info-shown {
-  display: block;
-  position: fixed;
-  top: 56%;
-  left: 490px;
-  transform: translate(0%, 0%);
-  padding: 15px;
-  width: 450px;
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px gray;
-  overflow: auto;
-  margin-bottom: 0;
-  z-index: 2;
+.range-slider input {
+    position:absolute;
+    left:0;
+    top:20px;
+    width:200px;
+    height:22px;
+    outline:none;
+    overflow:hidden;
+    pointer-events:none;
+    cursor:pointer;
 }
 
-.water .reset-and-submit-button {
-  margin-top: 10px;
-  margin-left: 65px;
+.range-slider input::-webkit-slider-thumb {
+    position:relative;
+    z-index:1;
+    outline:0;
+    pointer-events:all;
 }
 
-.water .expert-reset {
-  margin-left: 3px;
+.range-slider input::-moz-range-thumb {
+    position:relative;
+    z-index:10;
+    -moz-appearance:none;
+    width:9px;
+    pointer-events:all;
 }
 
-.water .expert-submit {
-  margin-left: 20px;
+.range-slider input::-moz-range-track {
+    position:relative;
+    z-index:-1;
+    background-color:rgba(100,100,100,1);
+    border:0;
 }
 
-.water .attributions {
-  background-color: white;
-  margin-top: 20px;
+.range-slider input:last-of-type::-moz-range-track {
+    -moz-appearance:none;
+    background:none transparent;
+    border:0;
 }
 
-.water #monthsControlSlider {
-  display: none;
-  right: 15px;
-  bottom: 100px;
-  position: absolute;
+.range-slider input[type=range]::-moz-focus-outer {
+    border:0;
 }
+
+/******************/
+/* Spinner Widget */
+/******************/
 
-.water .warnings {
-  display: none;
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, 0%);
-  width: 200px;
-  border-radius: 2px;
-  background-color: white;
-  padding: 10px;
-  box-shadow: 0px 0px 5px red;
-  text-align: center;
-  font-size: 14px;
-  font-weight: normal;
-  font-style: italic;
-  overflow: auto;
-  margin-bottom: 0;
-  z-index: 4;
+.spinner {
+    position:absolute;
+    top:35%;
+    left:35%;
+    width:8rem;
+    height:8rem;
+    border-radius:4rem;
+    border-bottom:1rem solid purple;
+    -moz-animation:sweep 1s infinite linear;
+    -webkit-animation:sweep 1s infinite linear;
 }
 
-.water .water {
-  flex-grow: 1;
+@-moz-keyframes sweep {
+    from {
+        -moz-transform:rotate(0deg);
+    }
+    to {
+        -moz-transform:rotate(360deg);
+    }
 }
 
-.water .water:disabled {
-  color: gray;
+@-webkit-keyframes sweep {
+    from {
+        -webkit-transform:rotate(0deg);
+    }
+    to {
+        -webkit-transform:rotate(360deg);
+    }
 }

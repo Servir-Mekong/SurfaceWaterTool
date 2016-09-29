@@ -1,0 +1,512 @@
+html,
+body,
+.water,
+.water .map {
+  height: 100%;
+  margin: 0px;
+  padding: 0px;
+  overflow: hidden;
+}
+
+body,
+input,
+textarea,
+select,
+button,
+keygen,
+isindex {
+  font-family: 'Roboto', Arial, sans-serif;
+  font-size: 14px;
+}
+
+.water .banner {
+  margin: 10px;
+  right:0;
+  background-color:none;
+  width:80%;
+  height:28px;
+  position: absolute;
+  z-index: 1;
+}
+
+.water .ui {
+  position: absolute;
+  top: 70px;
+  left: 10px;
+  width: 470px;
+  z-index: 1;
+}
+
+.water .panel {
+  border-radius: 2px;
+  background-color: white;
+  padding: 15px;
+  box-shadow: 0px 0px 5px gray;
+  overflow: auto;
+  margin-bottom: 0;
+}
+
+.water header {
+  padding-bottom: 5px;
+}
+
+.water h1 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.water .collapse-button {
+  display: inline;
+  font-size: 20px;
+  float: right;
+  cursor: pointer;
+}
+
+.water .settings-button {
+  display: none;
+  background-color: white;
+  width: 40px;
+  font-size: 30px;
+  font-weight: bold;
+  text-align: center;
+  box-shadow: 0px 0px 5px gray;
+  cursor: pointer
+}
+
+.water .general-info-button {
+  margin-right: 10px;
+}
+
+.water .demo-arrow-general-info{
+  display: none;
+  position: relative;
+  right: -22%;
+  top: 5px;
+  z-index:2;
+}
+
+.water .general-info {
+  display: none;
+}
+
+.water .general-info-shown {
+  display: inline;
+  position: absolute;
+  left: 480px;
+  padding: 15px;
+  margin-top: -5px;
+  width: 450px;
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0px 0px 5px gray;
+  overflow: auto;
+  margin-bottom: 0;
+  font-size: 14px;
+  font-weight: normal;
+}
+
+.water .demo-info {
+  display: none;
+  position: fixed;
+  padding: 15px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0px 0px 5px grey;
+  text-align: center;
+  font-size: 14px;
+  font-weight: normal;
+  overflow: auto;
+  z-index: 3;
+}
+
+.water .demo-info-text{
+  margin-bottom: 10px;
+}
+
+.water .demo-button-next{
+  position: relative;
+  left: -10%;
+}
+
+.water .demo-button-exit{
+  position: relative;
+  /*right: -10%;*/
+}
+
+.water .demo-info-clicks{
+  display: none;
+  position: fixed;
+  padding: 15px;
+  top: 75%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0px 0px 5px grey;
+  text-align: center;
+  font-size: 14px;
+  font-weight: normal;
+  overflow: auto;
+  z-index: 3;
+}
+
+.water .demo-info-click1{
+  display: none;
+}
+
+.water .demo-info-click2{
+  display: none;
+}
+
+.water .demo-info-click3{
+  display: none;
+}
+
+.water .demo-info-click-final{
+  display: none;
+}
+
+.water .instructions {
+  margin-bottom: 10px;
+}
+
+.water .legend-border {
+  border-style: solid;
+  border-color: white;
+  border-width: 2px;
+  margin: -2px;
+}
+
+.water .legend {
+  margin-top: 0px;
+}
+
+.water .legend-text {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.water .legend-value {
+  margin-bottom:15px;
+  display:flex;
+  align-items:center;
+}
+
+.water .legend-block {
+  min-width:40px;
+  height:20px;
+  margin-right:10px;
+  border:#bbb solid 1px;
+  background-color:#D3D3D3;
+}
+
+.water #aoiControlSlider {
+  margin-left: 71px;
+  width: 60px;
+}
+
+.water #aoiControlSlider .slider-selection {
+  background: #D3D3D3;
+}
+
+.water .aoiAlert {
+  margin-left: 40px;
+  font-style: italic;
+}
+
+/* Slider and Loading Alert for single water layers */
+/*
+.water #waterPermControlSlider {
+  margin-left: 30px;
+  width: 60px;
+}
+
+.water #waterPermControlSlider .slider-selection {
+  background: #D3D3D3;
+}
+
+.water #waterTempControlSlider {
+  margin-left: 47px;
+  width: 60px;
+}
+
+.water #waterTempControlSlider .slider-selection {
+  background: #D3D3D3;
+}
+
+.water .waterPermAlert {
+  margin-left: 40px;
+  font-style: italic;
+}
+
+.water .waterTempAlert {
+  margin-left: 40px;
+  font-style: italic;
+}
+*/
+
+/* Slider and Loading Alert for merged layer */
+.water #waterControlSlider {
+  margin-left: 30px;
+  width: 60px;
+}
+
+.water #waterControlSlider .slider-selection {
+  background: #D3D3D3;
+}
+
+.water .waterAlert {
+  margin-left: 40px;
+  font-style: italic;
+}
+
+.water .controls {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-end;
+}
+
+.water .inputs {
+  display: inline-block;
+  flex-grow: 8;
+}
+
+.water .btn.export {
+  display: inline-block;
+  margin-left: 10px;
+}
+
+.water .input-block {
+  display: block;
+  margin-top: 7px;
+}
+
+.water .input-block.date {
+  margin-bottom: 10px;
+}
+
+.water .input-block.region {
+  height: 22px;
+}
+
+.water .input-block-label {
+  font-weight: normal;
+  display: inline-block;
+  width: 65px;
+}
+
+.water .date-type-picker input[type=radio] {
+  vertical-align: top;
+  margin-top: 2px;
+}
+
+.water .date-type-picker label {
+  font-style: italic;
+  font-weight: normal;
+}
+
+.water .date-type-picker .or {
+  padding: 0 .3em;
+}
+
+.water .period_slice {
+  margin-left: 10px;
+  margin-right: 10px;
+}
+
+.water .dateSubmit {
+  margin-left: 10px;
+}
+
+.water .range-picker,
+.water .average-picker, {
+  display: block;
+}
+
+.water .filename {
+  width: 59%;
+  display: inline;
+}
+
+.water .date-picker {
+  display: inline-block;
+  width: 26%;
+}
+
+.water .date-picker-2 {
+  display: inline-block;
+  width: 26%;
+}
+
+.water .region .message {
+  font-style: italic;
+  color: gray;
+}
+
+.water .region .message-drawing,
+.water .region .message-selected {
+  display: none;
+}
+
+.water .region.selected .message,
+.water .region.drawing .message {
+  display: none;
+}
+
+.water .region.drawing .message-drawing {
+  display: inline;
+}
+
+.water .region.selected .message-selected {
+  display: inline;
+  color: green;
+  font-style: normal;
+}
+
+.water .region.selected .message-selected .clear {
+  color: black;
+}
+
+.water .expert-toggle {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: flex-end;
+  margin-top: 15px;
+}
+
+.water .expert-message {
+  font-weight: bold;
+}
+
+.water .expert-instructions {
+  font-weight: bold;
+  font-style: italic;
+}
+
+.water .expert-input {
+  display: none;
+  margin-top: 15px;
+  overflow-y: auto;
+}
+
+.water .expert-input-block-label {
+  font-weight: normal;
+  display: inline-block;
+  width: 65px;
+  font-size: 12px;
+}
+
+.water .climatology-input,
+.water .defringe-input {
+  width: 25px;
+  height: 25px;
+  cursor: pointer;
+}
+
+.water .percentile-input-perm,
+.water .percentile-input-temp {
+  width: 20%;
+  display: inline;
+}
+
+.water .water-threshold-input,
+.water .veg-threshold-input,
+.water .hand-threshold-input,
+.water .cloud-threshold-input {
+  width: 20%;
+  display: inline;
+}
+
+.water .climatology-info-button,
+.water .defringe-info-button {
+  position: relative;
+  bottom: 8px;
+}
+
+.water .climatology-info,
+.water .defringe-info,
+.water .percentile-info,
+.water .water-threshold-info,
+.water .veg-threshold-info,
+.water .hand-threshold-info,
+.water .cloud-threshold-info {
+  display: none;
+}
+
+.water .climatology-info-shown,
+.water .defringe-info-shown,
+.water .percentile-info-shown,
+.water .water-threshold-info-shown,
+.water .veg-threshold-info-shown,
+.water .hand-threshold-info-shown,
+.water .cloud-threshold-info-shown {
+  display: block;
+  position: fixed;
+  top: 56%;
+  left: 490px;
+  transform: translate(0%, 0%);
+  padding: 15px;
+  width: 450px;
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0px 0px 5px gray;
+  overflow: auto;
+  margin-bottom: 0;
+  z-index: 2;
+}
+
+.water .reset-and-submit-button {
+  margin-top: 10px;
+  margin-left: 65px;
+}
+
+.water .expert-reset {
+  margin-left: 3px;
+}
+
+.water .expert-submit {
+  margin-left: 20px;
+}
+
+.water .attributions {
+  background-color: white;
+  margin-top: 20px;
+}
+
+.water #monthsControlSlider {
+  display: none;
+  right: 15px;
+  bottom: 100px;
+  position: absolute;
+}
+
+.water .warnings {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, 0%);
+  width: 200px;
+  border-radius: 2px;
+  background-color: white;
+  padding: 10px;
+  box-shadow: 0px 0px 5px red;
+  text-align: center;
+  font-size: 14px;
+  font-weight: normal;
+  font-style: italic;
+  overflow: auto;
+  margin-bottom: 0;
+  z-index: 4;
+}
+
+.water .water {
+  flex-grow: 1;
+}
+
+.water .water:disabled {
+  color: gray;
+}
