@@ -1,5 +1,5 @@
-application: biotool-141304
-version: 3
+application: surface-water-beta
+version: 1
 
 runtime: python27
 api_version: 1

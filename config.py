@@ -4,7 +4,7 @@ import ee
 
 # The service account email address authorized by your Google contact.
 # The process to set up a service account is described in the README.
-EE_ACCOUNT = 'biotool@biotool-141304.iam.gserviceaccount.com'
+EE_ACCOUNT = 'surface-water-beta@appspot.gserviceaccount.com'
 
 # The private key associated with your service account in Privacy Enhanced
 # Email format (.pem suffix).  To convert a private key from the RSA format
