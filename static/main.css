@@ -124,54 +124,6 @@ nav ul li.highlight {
     width:100%;
 }
 
-/*************/
-/* Home Page */
-/*************/
-
-#home {
-    position:absolute;
-    right:5rem;
-    height:100%;
-    width:350px;
-    padding:2rem;
-    background:rgba(255, 255, 255, 0.8);
-    filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
-    -ms-filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
-}
-
-#home h1 {
-    margin-top:10px;
-    padding:0.5rem 0.5rem 0.5rem 1rem;
-    font-size:3rem;
-    font-weight:bold;
-    color:gray;
-    line-height:100%;
-    text-align:center;
-}
-
-#home h2 {
-    margin-bottom:10px;
-    padding:0.5rem 0.5rem 0.5rem 1rem;
-    font-size:2.2rem;
-    font-weight:400;
-    color:gray;
-    line-height:110%;
-    text-align:center;
-}
-
-#home h3 {
-    padding:0.5rem 0.5rem 0.75rem 1rem;
-    color:#3C948B;
-    font-family:Open Sans;
-    font-weight:400;
-    font-size:1.1rem;
-    font-style:normal;
-}
-
-#home p {
-    padding:0.5rem;
-}
-
 /**************/
 /* About Page */
 /**************/
@@ -258,21 +210,47 @@ nav ul li.highlight {
 
 #ecodash #general-info {
     position:absolute;
-    top:10px;
-    right:55px;
-    width:450px;
-    padding:15px;
+    top:15%;
+    left:20%;
+    height:56%;
+    width:56%;
+    padding:2%;
     border-radius:3px;
     background-color:white;
     box-shadow:0px 0px 5px gray;
-    font-size:14px;
     z-index:100;
 }
 
 #ecodash #general-info h1 {
-    font-size:16px;
+    padding:0rem 0rem 0.5rem 1rem;
+    font-size:3rem;
     font-weight:bold;
-    margin-bottom:2px;
+    color:gray;
+}
+
+#ecodash #general-info h2 {
+    padding:0rem 0rem 1rem 1rem;
+    font-size:2rem;
+    font-weight:400;
+    color:gray;
+}
+
+#ecodash #general-info h3 {
+    padding:0rem 0rem 0.75rem 1rem;
+    font-size:1.2rem;
+    font-weight:400;
+    color:#3C948B;
+}
+
+#ecodash #general-info p {
+    padding:0.5rem;
+    font-size:1rem;
+}
+
+#ecodash #general-info input {
+    margin:0.5rem 39%;
+    padding:0.25rem;
+    font-size:1.2rem;
 }
 
 #ecodash #legend {

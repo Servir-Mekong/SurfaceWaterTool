@@ -11,7 +11,7 @@
 ;; Show/Hide Page Components
 ;;===========================
 
-(defonce visible-controls (r/atom #{:ui}))
+(defonce visible-controls (r/atom #{:info :settings-button}))
 
 (defn visible-control? [control]
   (contains? @visible-controls control))
@@ -165,13 +165,22 @@
                                       (show-control! :ui))}
     (str/unescapeEntities "&#9776;")]
    [:div#general-info {:style (get-display-style :info)}
-    [:h1 "Welcome to Eco Dash"]
+    [:h1 "Surface Water Tool"]
+    [:h2 "Surface Water Detection and Mapping"]
+    [:h3 "Explore regional droughts, floods, and baseline conditions."]
+    [:hr]
     [:p
-     "Lorem ipsum dolor sit amet, nam et ac, ligula viverra dictumst"
-     " turpis, nibh et vitae duis pulvinar sodales. Nullam viverra voluptas"
-     " sit, pede pellentesque pellentesque dui suspendisse. Praesent quisque"
-     " ultricies eget in purus viverra, elit neque mauris pretium ac, dolor"
-     " massa in ac nulla, tempus per a vel eros vivamus arcu, elit dui mauris."]]
+     "The Surface Water Tool is a collaborative effort between its developers and "
+     "its community of users. We welcome suggestions for improvements on our "
+     [:a {:href "https://github.com/Servir-Mekong/SurfaceWaterTool/issues"
+          :target "_blank"}
+      "Github"]
+     " issues page."]
+    [:input {:type "button" :name "get-started-button" :value "Get Started!"
+             :on-click (fn []
+                         (hide-control! :info)
+                         (hide-control! :settings-button)
+                         (show-control! :ui))}]]
    [:div#legend
     [:h2 "∆EVI"]
     [:table
