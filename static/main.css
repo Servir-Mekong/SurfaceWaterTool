@@ -88,7 +88,7 @@ nav {
 
 nav ul {
     position:absolute;
-    top:6px;
+    top:8px;
     left:30px;
 }
 
@@ -116,19 +116,17 @@ nav ul li.highlight {
     background-color:rgba(255,255,255,0.2);
 }
 
-#pagecontent a:link,
-#pagecontent a:visited,
-#pagecontent a:active {
+#pagecontent a {
     color:#444;
     text-decoration:none;
 }
 
 #pagecontent a:hover {
-    color:#444;
-    text-shadow: 0px 0px 4px #333;
+    text-shadow:0px 0px 4px #333;
 }
 
 #pagecontent #all-pages {
+    position:relative;
     height:100%;
     width:100%;
 }
@@ -187,6 +185,7 @@ nav ul li.highlight {
 
 #about {
     position:absolute;
+    top:0px;
     right:5rem;
     height:100%;
     width:350px;
@@ -225,7 +224,9 @@ nav ul li.highlight {
 /****************************************/
 
 #ecodash {
-    position:relative;
+    position:absolute;
+    top:0px;
+    left:0px;
     height:100%;
     width:100%;
 }
@@ -369,7 +370,7 @@ nav ul li.highlight {
     position:absolute;
     bottom:0;
     left:45%;
-    width:7.2rem;
+    width:10rem;
     height:1.2rem;
     border-top-left-radius:3px;
     border-top-right-radius:3px;
