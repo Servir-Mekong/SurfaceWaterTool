@@ -1,8 +1,8 @@
 (task-options!
  pom  {:project     'Servir-Mekong/SurfaceWaterTool
-       :version     "1.0.0-SNAPSHOT"
+       :version     "1.0.0"
        :description "Surface water web explorer for Southeast Asia"
-       :url         "http://surface-water.appspot.com"}
+       :url         "http://surface-water-beta.appspot.com"}
  repl {:eval        '(set! *warn-on-reflection* true)})
 
 (set-env!
