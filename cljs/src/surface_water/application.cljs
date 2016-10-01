@@ -397,50 +397,11 @@
     (.setMap drawing-manager @google-map)
     (reset! active-drawing-manager drawing-manager)))
 
-;; (defn handle-polygon-click [event]
-;;   (show-progress!)
-;;   (let [feature (.-feature event)
-;;         color   (css-colors @polygon-counter)]
-;;     (.overrideStyle (.-data @google-map)
-;;                     feature
-;;                     #js {:fillColor color
-;;                          :strokeColor color
-;;                          :strokeWeight 6})
-;;     (swap! polygon-counter inc)
-;;     (let [title       (.getProperty feature "title")
-;;           id          (.getProperty feature "id")
-;;           baseline    (get-slider-vals :baseline)
-;;           study       (get-slider-vals :study)
-;;           details-url (str "/details?"
-;;                            "polygon_id=" id "&"
-;;                            "refLow=" (baseline 0) "&"
-;;                            "refHigh=" (baseline 1) "&"
-;;                            "studyLow=" (study 0) "&"
-;;                            "studyHigh=" (study 1) "&"
-;;                            "folder=" @country-or-province)]
-;;       (swap! polygon-selection conj title)
-;;       (log "AJAX Request: " details-url)
-;;       (go (let [response (<! (http/get details-url))]
-;;             (log "AJAX Response: " response)
-;;             (if (:success response)
-;;               (show-chart! (-> response :body :timeSeries))
-;;               (js/alert "An error occurred! Please refresh the page."))
-;;             (hide-progress!))))))
-
-;; (defn init-old [ee-map-id ee-token country-polygons province-polygons]
-;;   (let [json-reader       (transit/reader :json)
-;;         country-polygons  (transit/read json-reader country-polygons)
-;;         province-polygons (transit/read json-reader province-polygons)]
-;;     (log "EE Map ID: " ee-map-id)
-;;     (log "EE Token: " ee-token)
-;;     (log "Countries: " (count country-polygons))
-;;     (log "Provinces: " (count province-polygons))
-;;     (.load js/google "visualization" "1.0")
-;;     (reset! google-map (create-map))
-;;     (reset! country-names country-polygons)
-;;     (reset! province-names province-polygons)
-;;     (.addListener (.-data @google-map) "click" handle-polygon-click)
-;;     (show-basic-map ee-map-id ee-token)))
+(defn handle-polygon-click [event]
+  (let [feature (.-feature event)
+        title   (.getProperty feature "title")]
+    (swap! polygon-selection conj title)
+    (swap! polygon-counter inc)))
 
 (defn get-ee-map-type [ee-map-id ee-token layer-name]
   (google.maps.ImageMapType.
@@ -589,5 +550,6 @@
     ;; (expert-submit)
     ;; (climatology-slider)
     ;; (init-export)
+    (.addListener (.-data @google-map) "click" handle-polygon-click)
     (load-basic-maps)
     (refresh-image)))
