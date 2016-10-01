@@ -37,6 +37,14 @@ ee.data.setDeadline(URL_FETCH_TIMEOUT)
 socket.setdefaulttimeout(URL_FETCH_TIMEOUT)
 urlfetch.set_default_fetch_deadline(URL_FETCH_TIMEOUT)
 
+# The file system folder path to the folder with GeoJSON polygon files.
+POLYGON_PATH_COUNTRY = 'static/country/'
+POLYGON_PATH_PROVINCE = 'static/province/'
+
+# Read the polygon IDs from the file system.
+POLYGON_IDS_COUNTRY = [name.replace('.json', '') for name in os.listdir(POLYGON_PATH_COUNTRY)]
+POLYGON_IDS_PROVINCE = [name.replace('.json', '') for name in os.listdir(POLYGON_PATH_PROVINCE)]
+
 # ------------------------------------------------------------------------------------ #
 # Web request handlers
 # ------------------------------------------------------------------------------------ #
@@ -45,9 +53,12 @@ class MainHandler(webapp2.RequestHandler):
     """A servlet to handle requests to load the main web page."""
 
     def get(self):
-        
+        template_values = {
+            'countryPolygons': json.dumps(POLYGON_IDS_COUNTRY),
+            'provincePolygons': json.dumps(POLYGON_IDS_PROVINCE)
+        }
         template = JINJA2_ENVIRONMENT.get_template('index.html')
-        self.response.out.write(template.render())
+        self.response.out.write(template.render(template_values))
 
 
 class GetBasicMapsHandler(webapp2.RequestHandler):

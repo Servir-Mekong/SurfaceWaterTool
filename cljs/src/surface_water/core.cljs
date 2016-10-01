@@ -74,7 +74,7 @@
 ;; CLJS Entry Point
 ;;==================
 
-(defn ^:export main []
+(defn ^:export main [country-polygons province-polygons]
   (r/render [page-header] (dom/getElement "pageheader"))
   (r/render [page-content] (dom/getElement "pagecontent"))
-  (app/init))
+  (app/init country-polygons province-polygons))

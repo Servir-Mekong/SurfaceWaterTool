@@ -262,6 +262,10 @@
 
 (defonce google-map (atom nil))
 
+(defonce province-names (atom []))
+
+(defonce country-names (atom []))
+
 (def *minimum-time-period-regular* 90) ;; days
 
 (def *minimum-time-period-climatology* 1095) ;; days
@@ -634,14 +638,21 @@
     (set! (.-value end-date-picker) "2014-12-31")))
 
 ;; FIXME: Finish implementing the commented out functions
-(defn init []
-  (reset! google-map (create-map))
-  ;; (create-drawing-manager)
-  (init-date-pickers)
-  ;; (init-region-picker)
-  ;; (opacity-sliders)
-  ;; (expert-submit)
-  ;; (climatology-slider)
-  ;; (init-export)
-  (load-basic-maps)
-  (refresh-image))
+(defn init [country-polygons province-polygons]
+  (let [json-reader       (transit/reader :json)
+        country-polygons  (transit/read json-reader country-polygons)
+        province-polygons (transit/read json-reader province-polygons)]
+    (log "Countries: " (count country-polygons))
+    (log "Provinces: " (count province-polygons))
+    (reset! google-map (create-map))
+    (reset! country-names country-polygons)
+    (reset! province-names province-polygons)
+    ;; (create-drawing-manager)
+    (init-date-pickers)
+    ;; (init-region-picker)
+    ;; (opacity-sliders)
+    ;; (expert-submit)
+    ;; (climatology-slider)
+    ;; (init-export)
+    (load-basic-maps)
+    (refresh-image)))

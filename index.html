@@ -32,7 +32,10 @@
     <!-- Load the Clojurescript main application code -->
     <script src="/static/surface_water.js"></script>
     <script>
-      surface_water.core.main()
+      surface_water.core.main(
+      '{{ countryPolygons | safe }}',
+      '{{ provincePolygons | safe }}'
+      )
     </script>
 
   </body>
