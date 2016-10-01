@@ -341,13 +341,13 @@
 ;;     (reset! polygon-selection [])
 ;;     (clear-chart!)))
 
-;; (defn update-opacity! [val]
-;;   (reset! opacity val)
-;;   (let [overlay-map-types (.-overlayMapTypes @google-map)]
-;;     (.forEach overlay-map-types
-;;               (fn [map-type index]
-;;                 (if map-type
-;;                   (.setOpacity (.getAt overlay-map-types index) val))))))
+(defn update-opacity! [val]
+  (reset! opacity val)
+  (let [overlay-map-types (.-overlayMapTypes @google-map)]
+    (.forEach overlay-map-types
+              (fn [map-type index]
+                (if map-type
+                  (.setOpacity (.getAt overlay-map-types index) val))))))
 
 ;; 1. load the JSON file from disk for each province and display them on the map
 ;; 2. set the stroke and fill colors to white and the stroke weight to 2
