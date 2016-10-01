@@ -130,11 +130,12 @@ nav ul li.highlight {
 
 #about {
     position:absolute;
-    top:0px;
-    right:5rem;
+    top:0%;
+    left:10%;
     height:100%;
-    width:350px;
-    padding:2rem;
+    width:76%;
+    padding:2%;
+    overflow:scroll;
     background:rgba(255, 255, 255, 0.8);
     filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
     -ms-filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
@@ -151,17 +152,26 @@ nav ul li.highlight {
     padding:0.5rem;
 }
 
+#about figure img {
+    height:200px;
+    margin:auto;
+}
+
+#about #about-logos {
+    width:70%;
+    margin:auto;
+}
+
+#about #about-logos img {
+    display:inline;
+    height:35px;
+    padding:0.5rem;
+}
+
 #about p#copyright {
-    clear:both;
     padding:0.5rem;
     width:100%;
     text-align:center;
-}
-
-#about img {
-    float:left;
-    height:35px;
-    padding:0.5rem;
 }
 
 /****************************************/
