@@ -486,7 +486,7 @@ nav ul li.highlight {
     color:#333;
     height:1rem;
     width:80%;
-    margin-left:10%;
+    margin:0% 0% 10% 10%;
 }
 
 /************************************/
@@ -494,13 +494,14 @@ nav ul li.highlight {
 /************************************/
 
 #water #ui #controls #expert-controls {
-    height:14rem;
+    position:relative;
+    height:15rem;
     width:80%;
-    margin:5% 10%;
+    margin:0 10%;
 }
 
 #water #ui #controls #expert-controls ul {
-    height:12rem;
+    height:15rem;
     width:100%;
     margin-left:0%;
 }
@@ -534,16 +535,16 @@ nav ul li.highlight {
 }
 
 #water #ui #controls #expert-controls input[type=button] {
-    display:inline-block;
-    margin-top:5px;
-    margin-left:15%;
     height:28px;
+    margin:5px 0px 10px 25%;
     font-size:0.8rem;
     color:#333;
 }
 
 #water #ui #controls #expert-controls ul li #month-control {
-    position:relative;
+    position:absolute;
+    top:0px;
+    right:0px;
     height:45px;
     width:145px;
     padding:5px;

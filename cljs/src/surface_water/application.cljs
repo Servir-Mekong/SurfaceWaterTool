@@ -123,7 +123,7 @@
       {:type "number" :min "0" :max "1" :step "0.05" :default-value "0"}]
      [:label "Cloud threshold"]]
     [:li
-     [:input#expert-reset {:type "button" :value "Reset"
+     [:input#expert-reset {:type "button" :value "Reset to Defaults"
                            :on-click (fn [_]
                                        (uncheck! "climatology-input")
                                        (uncheck! "defringe-input")
@@ -133,8 +133,7 @@
                                        (set-val! "veg-threshold-input" "0.35")
                                        (set-val! "hand-threshold-input" "25")
                                        (set-val! "cloud-threshold-input" "0")
-                                       (hide-control! :month-control))}]
-     [:input#expert-submit {:type "button" :value "Submit"}]]]])
+                                       (hide-control! :month-control))}]]]])
 
 (defn map-controls []
   [:div#controls
@@ -143,12 +142,14 @@
     [:li [:input#start-date {:type "text"}]]
     [:li [:b "-"]]
     [:li [:input#end-date {:type "text"}]]]
-   [:h3 "Step 2: Update the map with the new water layer"]
+   [:h3 "Step 2: Optionally adjust the input parameters"]
+   [expert-controls]
+   [:h3 "Step 3: Update the map with the new water layer"]
    [:input {:type "button" :name "update-map" :value "Update Map"
             :on-click #(do (remove-map-features!)
                            (reset! polygon-selection-method "")
                            (refresh-image))}]
-   [:h3 "Step 3: Choose a polygon selection method"]
+   [:h3 "Step 4: Choose a polygon selection method"]
    [:ul
     [:li
      [:input {:type "radio" :name "polygon-selection-method" :value "Province"
@@ -180,14 +181,13 @@
                              (remove-map-features!)
                              (enable-custom-polygon-selection!))}]
      [:label "Draw Polygon"]]]
-   [:h3 "Step 4: Click a polygon on the map or draw your own"]
+   [:h3 "Step 5: Click a polygon on the map or draw your own"]
    [:p#polygon
     (str @polygon-selection-method " Selection: ")
     [:em (clojure.string/join ", " @polygon-selection)]]
-   [:h3 "Step 5: Export the selected region's water data"]
+   [:h3 "Step 6: Export the selected region's water data"]
    [:input#export-filename {:type "text" :name "export-filename"
-                            :placeholder "default: SurfaceWater_Export_<year>"}]
-   [expert-controls]])
+                            :placeholder "default: SurfaceWater_Export_<year>"}]])
 
 ;;=========================
 ;; Application Page Layout
