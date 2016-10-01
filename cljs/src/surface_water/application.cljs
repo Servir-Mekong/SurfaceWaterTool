@@ -341,28 +341,28 @@
                   (.setOpacity (.getAt overlay-map-types index) val))))))
 
 ;; 1. load the JSON file from disk for each province and display them on the map
-;; 2. set the stroke and fill colors to white and the stroke weight to 2
-;; (defn enable-province-selection! []
-;;   (let [map-features (.-data @google-map)]
-;;     (doseq [province @province-names]
-;;       (.loadGeoJson map-features (str "/static/province/" province ".json")))
-;;     (.setStyle map-features
-;;                (fn [feature] #js {:fillColor "white"
-;;                                   :strokeColor "white"
-;;                                   :strokeWeight 2}))
-;;     (reset! country-or-province 0)))
+;; 2. set the stroke and fill colors to SandyBrown and the stroke weight to 2
+(defn enable-province-selection! []
+  (let [map-features (.-data @google-map)]
+    (doseq [province @province-names]
+      (.loadGeoJson map-features (str "/static/province/" province ".json")))
+    (.setStyle map-features
+               (fn [feature] #js {:fillColor "SandyBrown"
+                                  :strokeColor "SandyBrown"
+                                  :strokeWeight 2}))
+    (reset! country-or-province 0)))
 
 ;; 1. load the JSON file from disk for each country and display them on the map
-;; 2. set the stroke and fill colors to white and the stroke weight to 2
-;; (defn enable-country-selection! []
-;;   (let [map-features (.-data @google-map)]
-;;     (doseq [country @country-names]
-;;       (.loadGeoJson map-features (str "/static/country/" country ".json")))
-;;     (.setStyle map-features
-;;                (fn [feature] #js {:fillColor "white"
-;;                                   :strokeColor "white"
-;;                                   :strokeWeight 2}))
-;;     (reset! country-or-province 1)))
+;; 2. set the stroke and fill colors to SandyBrown and the stroke weight to 2
+(defn enable-country-selection! []
+  (let [map-features (.-data @google-map)]
+    (doseq [country @country-names]
+      (.loadGeoJson map-features (str "/static/country/" country ".json")))
+    (.setStyle map-features
+               (fn [feature] #js {:fillColor "SandyBrown"
+                                  :strokeColor "SandyBrown"
+                                  :strokeWeight 2}))
+    (reset! country-or-province 1)))
 
 ;; 1. add event to all-overlays
 ;; 2. increment polygon-counter
@@ -372,50 +372,30 @@
 ;; 6. log the AJAX request url and response maps to the console
 ;; 7. add (str "my area " @polygon-counter) to my-name
 ;; 8. show a new chart
-;; (defn custom-overlay-handler [drawing-manager event]
-;;   (show-progress!)
-;;   (swap! all-overlays conj event)
-;;   (swap! polygon-counter inc)
-;;   (let [color (css-colors @polygon-counter)]
-;;     (.setOptions drawing-manager
-;;                  #js {:polygonOptions
-;;                       #js {:fillColor color
-;;                            :strokeColor color}}))
-;;   (let [geom           (-> event .-overlay .getPath .getArray)
-;;         baseline       (get-slider-vals :baseline)
-;;         study          (get-slider-vals :study)
-;;         polygon-url    (str "/polygon?"
-;;                             "polygon=" geom "&"
-;;                             "refLow=" (baseline 0) "&"
-;;                             "refHigh=" (baseline 1) "&"
-;;                             "studyLow=" (study 0) "&"
-;;                             "studyHigh=" (study 1))
-;;         counter         @polygon-counter]
-;;     (swap! polygon-selection conj (str "Shape " counter))
-;;     (log "AJAX Request: " polygon-url)
-;;     (go (let [response (<! (http/get polygon-url))]
-;;           (log "AJAX Response: " response)
-;;           (if (:success response)
-;;             (show-chart! (-> response :body))
-;;             (js/alert "An error occurred! Please refresh the page."))
-;;           (hide-progress!)))))
+;;
+;; NOTE: geom is (-> event .-overlay .getPath .getArray)
+(defn custom-overlay-handler [drawing-manager event]
+  (swap! all-overlays conj event)
+  (swap! polygon-counter inc)
+  (swap! polygon-selection conj (str "Shape " @polygon-counter)))
 
 ;; 1. create drawing-manager
 ;; 2. attach it to the map
 ;; 3. add event listener to the map to call custom-overlay-handler when done drawing
-;; (defn enable-custom-polygon-selection! []
-;;   (let [counter         @polygon-counter
-;;         drawing-manager (google.maps.drawing.DrawingManager.
-;;                          #js {:drawingMode google.maps.drawing.OverlayType.POLYGON
-;;                               :drawingControl false
-;;                               :polygonOptions
-;;                               #js {:fillColor "#ff0000"
-;;                                    :strokeColor "#ff0000"}})]
-;;     (google.maps.event.addListener drawing-manager
-;;                                    "overlaycomplete"
-;;                                    #(custom-overlay-handler drawing-manager %))
-;;     (.setMap drawing-manager @google-map)
-;;     (reset! active-drawing-manager drawing-manager)))
+(defn enable-custom-polygon-selection! []
+  (let [counter         @polygon-counter
+        drawing-manager (google.maps.drawing.DrawingManager.
+                         #js {:drawingMode google.maps.drawing.OverlayType.POLYGON
+                              :drawingControl false
+                              :polygonOptions
+                              #js {:fillColor "SandyBrown"
+                                   :strokeColor "SandyBrown"
+                                   :strokeWeight 2}})]
+    (google.maps.event.addListener drawing-manager
+                                   "overlaycomplete"
+                                   #(custom-overlay-handler drawing-manager %))
+    (.setMap drawing-manager @google-map)
+    (reset! active-drawing-manager drawing-manager)))
 
 ;; (defn handle-polygon-click [event]
 ;;   (show-progress!)
