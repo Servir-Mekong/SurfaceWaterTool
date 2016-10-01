@@ -43,8 +43,8 @@
 
 (defn about-page [page-visibility]
   [:div#about page-visibility
-   [:h1 "About SurfaceWaterTool"]
-   [:p (str "SurfaceWaterTool is an open-source, web GIS tool created by"
+   [:h1 "About the Surface Water Tool"]
+   [:p (str "The Surface Water Tool is an open-source, web GIS tool created by"
             " SERVIR-Mekong for exploring the historic change in surface water"
             " levels throughout the Mekong River region of southeast Asia.")]
    [:hr]

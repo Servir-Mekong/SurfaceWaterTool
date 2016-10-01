@@ -165,12 +165,12 @@
                                       (show-control! :ui))}
     (str/unescapeEntities "&#9776;")]
    [:div#general-info {:style (get-display-style :info)}
-    [:h1 "SurfaceWaterTool"]
+    [:h1 "Surface Water Tool"]
     [:h2 "Surface Water Detection and Mapping"]
     [:h3 "Explore regional droughts, floods, and baseline conditions."]
     [:hr]
     [:p
-     "SurfaceWaterTool is a collaborative effort between its developers and "
+     "The Surface Water Tool is a collaborative effort between its developers and "
      "its community of users. We welcome suggestions for improvements on our "
      [:a {:href "https://github.com/Servir-Mekong/SurfaceWaterTool/issues"
           :target "_blank"}
