@@ -390,7 +390,7 @@
                               :polygonOptions
                               #js {:fillColor "SandyBrown"
                                    :strokeColor "SandyBrown"
-                                   :strokeWeight 2}})]
+                                   :strokeWeight 6}})]
     (google.maps.event.addListener drawing-manager
                                    "overlaycomplete"
                                    #(custom-overlay-handler drawing-manager %))
@@ -401,7 +401,12 @@
   (let [feature (.-feature event)
         title   (.getProperty feature "title")]
     (swap! polygon-selection conj title)
-    (swap! polygon-counter inc)))
+    (swap! polygon-counter inc)
+    (.overrideStyle (.-data @google-map)
+                    feature
+                    #js {:fillColor "SandyBrown"
+                         :strokeColor "SandyBrown"
+                         :strokeWeight 6})))
 
 (defn get-ee-map-type [ee-map-id ee-token layer-name]
   (google.maps.ImageMapType.
