@@ -141,10 +141,9 @@
     [:li [:input#end-date {:type "text"}]]]
    [:h3 "Step 2: Update the map with the new water layer"]
    [:input {:type "button" :name "update-map" :value "Update Map"
-            :on-click #(do
-                         ;; (remove-map-features!)
-                         ;; (reset! polygon-selection-method "")
-                         (refresh-image))}]
+            :on-click #(do (remove-map-features!)
+                           (reset! polygon-selection-method "")
+                           (refresh-image))}]
    [:h3 "Step 3: Choose a polygon selection method"]
    [:ul
     [:li
@@ -266,14 +265,6 @@
 
 (defonce country-names (atom []))
 
-(def *minimum-time-period-regular* 90) ;; days
-
-(def *minimum-time-period-climatology* 1095) ;; days
-
-(defonce province-names (atom []))
-
-(defonce country-names (atom []))
-
 (defonce country-or-province (atom nil))
 
 (defonce polygon-counter (atom 0))
@@ -282,7 +273,9 @@
 
 (defonce all-overlays (atom []))
 
-(defonce chart-data (atom nil))
+(def *minimum-time-period-regular* 90) ;; days
+
+(def *minimum-time-period-climatology* 1095) ;; days
 
 (defonce css-colors
   ["Aqua" "Black" "Blue" "BlueViolet" "Brown" "Aquamarine" "BurlyWood" "CadetBlue"
@@ -326,24 +319,18 @@
         :maxZoom 14
         :streetViewControl false}))
 
-;; (defn clear-chart! []
-;;   (reset! chart-data nil)
-;;   (hide-control! :chart)
-;;   (set! (.-innerHTML (dom/getElement "chart")) nil))
-
-;; (defn remove-map-features! []
-;;   (let [map-features (.-data @google-map)]
-;;     (.forEach map-features #(.remove map-features %))
-;;     (.revertStyle map-features)
-;;     (doseq [event @all-overlays]
-;;       (.setMap (.-overlay event) nil))
-;;     (when @active-drawing-manager
-;;       (.setMap @active-drawing-manager nil)
-;;       (reset! active-drawing-manager nil))
-;;     (reset! all-overlays [])
-;;     (reset! polygon-counter 0)
-;;     (reset! polygon-selection [])
-;;     (clear-chart!)))
+(defn remove-map-features! []
+  (let [map-features (.-data @google-map)]
+    (.forEach map-features #(.remove map-features %))
+    (.revertStyle map-features)
+    (doseq [event @all-overlays]
+      (.setMap (.-overlay event) nil))
+    (when @active-drawing-manager
+      (.setMap @active-drawing-manager nil)
+      (reset! active-drawing-manager nil))
+    (reset! all-overlays [])
+    (reset! polygon-counter 0)
+    (reset! polygon-selection [])))
 
 (defn update-opacity! [val]
   (reset! opacity val)
@@ -376,38 +363,6 @@
 ;;                                   :strokeColor "white"
 ;;                                   :strokeWeight 2}))
 ;;     (reset! country-or-province 1)))
-
-;; (defn show-chart! [time-series]
-;;   (if @chart-data
-;;     (swap! chart-data
-;;            #(mapv (fn [val-stack [time val]] (conj val-stack val))
-;;                   %
-;;                   time-series))
-;;     (reset! chart-data
-;;             (mapv (fn [[time val]] [(js/Date. (js/parseInt time 10)) val])
-;;                   time-series)))
-;;   (let [table (google.visualization.DataTable.)]
-;;     (.addColumn table "date")
-;;     (doseq [polygon-name @polygon-selection]
-;;       (.addColumn table "number" polygon-name))
-;;     (.addRows table (clj->js @chart-data))
-;;     (doto (google.visualization.ChartWrapper.
-;;            #js {:chartType "LineChart"
-;;                 :dataTable table
-;;                 :options #js {:height 200
-;;                               :width 385
-;;                               :title "Biophysical Health"
-;;                               :titleTextStyle #js {:fontName "Open Sans"}
-;;                               :legend #js {:position "right"}
-;;                               :curveType "function"
-;;                               :chartArea #js {:left 50
-;;                                               :top 50
-;;                                               :height 100
-;;                                               :width 200}
-;;                               :colors (clj->js css-colors)}})
-;;       (.setContainerId (dom/getElement "chart"))
-;;       (.draw))
-;;     (show-control! :chart)))
 
 ;; 1. add event to all-overlays
 ;; 2. increment polygon-counter
