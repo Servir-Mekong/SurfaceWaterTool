@@ -52,7 +52,7 @@
     {:visibility "hidden"}))
 
 (declare remove-map-features! enable-province-selection!
-         enable-country-selection! enable-custom-polygon-selection! get-slider-vals
+         enable-country-selection! enable-custom-polygon-selection!
          refresh-image)
 
 (defn set-val! [id val]
@@ -265,8 +265,6 @@
 
 (defonce country-names (atom []))
 
-(defonce country-or-province (atom nil))
-
 (defonce polygon-counter (atom 0))
 
 (defonce active-drawing-manager (atom nil))
@@ -276,31 +274,6 @@
 (def *minimum-time-period-regular* 90) ;; days
 
 (def *minimum-time-period-climatology* 1095) ;; days
-
-(defonce css-colors
-  ["Aqua" "Black" "Blue" "BlueViolet" "Brown" "Aquamarine" "BurlyWood" "CadetBlue"
-   "Chartreuse" "Chocolate" "Coral" "CornflowerBlue" "Cornsilk" "Crimson" "Cyan"
-   "DarkBlue" "DarkCyan" "DarkGoldenRod" "DarkGray" "DarkGrey" "DarkGreen"
-   "DarkKhaki" "DarkMagenta" "DarkOliveGreen" "Darkorange" "DarkOrchid" "DarkRed"
-   "DarkSalmon" "DarkSeaGreen" "DarkSlateBlue" "DarkSlateGray" "DarkSlateGrey"
-   "DarkTurquoise" "DarkViolet" "DeepPink" "DeepSkyBlue" "DimGray" "DimGrey"
-   "DodgerBlue" "FireBrick" "FloralWhite" "ForestGreen" "Fuchsia" "Gainsboro"
-   "GhostWhite" "Gold" "GoldenRod" "Gray" "Grey" "Green" "GreenYellow" "HoneyDew"
-   "HotPink" "IndianRed" "Indigo" "Ivory" "Khaki" "Lavender" "LavenderBlush"
-   "LawnGreen" "LemonChiffon" "LightBlue" "LightCoral" "LightCyan"
-   "LightGoldenRodYellow" "LightGray" "LightGrey" "LightGreen" "LightPink"
-   "LightSalmon" "LightSeaGreen" "LightSkyBlue" "LightSlateGray" "LightSlateGrey"
-   "LightSteelBlue" "LightYellow" "Lime" "LimeGreen" "Linen" "Magenta" "Maroon"
-   "MediumAquaMarine" "MediumBlue" "MediumOrchid" "MediumPurple" "MediumSeaGreen"
-   "MediumSlateBlue" "MediumSpringGreen" "MediumTurquoise" "MediumVioletRed"
-   "MidnightBlue" "MintCream" "MistyRose" "Moccasin" "NavajoWhite" "Navy" "OldLace"
-   "Olive" "OliveDrab" "Orange" "OrangeRed" "Orchid" "PaleGoldenRod" "PaleGreen"
-   "PaleTurquoise" "PaleVioletRed" "PapayaWhip" "PeachPuff" "Peru" "Pink" "Plum"
-   "PowderBlue" "Purple" "Red" "RosyBrown" "RoyalBlue" "SaddleBrown" "Salmon"
-   "SandyBrown" "SeaGreen" "SeaShell" "Sienna" "Silver" "SkyBlue" "SlateBlue"
-   "SlateGray" "SlateGrey" "Snow" "SpringGreen" "SteelBlue" "Tan" "Teal" "Thistle"
-   "Tomato" "Turquoise" "Violet" "Wheat" "White" "WhiteSmoke" "Yellow"
-   "YellowGreen"])
 
 (declare get-ee-map-type show-basic-map)
 
@@ -349,8 +322,7 @@
     (.setStyle map-features
                (fn [feature] #js {:fillColor "SandyBrown"
                                   :strokeColor "SandyBrown"
-                                  :strokeWeight 2}))
-    (reset! country-or-province 0)))
+                                  :strokeWeight 2}))))
 
 ;; 1. load the JSON file from disk for each country and display them on the map
 ;; 2. set the stroke and fill colors to SandyBrown and the stroke weight to 2
@@ -361,18 +333,8 @@
     (.setStyle map-features
                (fn [feature] #js {:fillColor "SandyBrown"
                                   :strokeColor "SandyBrown"
-                                  :strokeWeight 2}))
-    (reset! country-or-province 1)))
+                                  :strokeWeight 2}))))
 
-;; 1. add event to all-overlays
-;; 2. increment polygon-counter
-;; 3. update the drawing-manager to use the next polygon color
-;; 4. collect the polygon coords and reads the baseline and study slider vals
-;; 5. send an AJAX request for that polygon over the specified time ranges
-;; 6. log the AJAX request url and response maps to the console
-;; 7. add (str "my area " @polygon-counter) to my-name
-;; 8. show a new chart
-;;
 ;; NOTE: geom is (-> event .-overlay .getPath .getArray)
 (defn custom-overlay-handler [drawing-manager event]
   (swap! all-overlays conj event)
