@@ -219,10 +219,15 @@
                                       (show-control! :ui))}
     (str/unescapeEntities "&#9776;")]
    [:div#general-info {:style (get-display-style :info)}
-    [:h1 "Surface Water Tool"]
-    [:h2 "Surface Water Detection and Mapping"]
-    [:h3 "Explore regional droughts, floods, and baseline conditions."]
+    [:h1 "Surface Water Mapping Tool"]
     [:hr]
+    [:p
+     "This tool calculates past patterns of surface water extent from"
+     " multiple layers of Landsat imagery. The tool consists of a Google"
+     " Earth Engine application and a user friendly web interface, which"
+     " allows the user to specify the period evaluated and other calculation"
+     " parameters that are then executed in a cloud service. Results are"
+     " displayed on screen and can be downloaded for specified areas."]
     [:p
      "The Surface Water Tool is a collaborative effort between its developers and "
      "its community of users. We welcome suggestions for improvements on our "

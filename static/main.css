@@ -211,9 +211,9 @@ nav ul li.highlight {
 #water #general-info {
     position:absolute;
     top:15%;
-    left:20%;
+    left:22.5%;
     height:56%;
-    width:56%;
+    width:51%;
     padding:2%;
     border-radius:3px;
     background-color:white;
@@ -222,24 +222,11 @@ nav ul li.highlight {
 }
 
 #water #general-info h1 {
-    padding:0rem 0rem 0.5rem 1rem;
-    font-size:3rem;
+    text-align:center;
+    margin-bottom:0.5rem;
+    font-size:2.4rem;
     font-weight:bold;
     color:gray;
-}
-
-#water #general-info h2 {
-    padding:0rem 0rem 1rem 1rem;
-    font-size:2rem;
-    font-weight:400;
-    color:gray;
-}
-
-#water #general-info h3 {
-    padding:0rem 0rem 0.75rem 1rem;
-    font-size:1.2rem;
-    font-weight:400;
-    color:#3C948B;
 }
 
 #water #general-info p {
@@ -248,7 +235,7 @@ nav ul li.highlight {
 }
 
 #water #general-info input {
-    margin:0.5rem 39%;
+    margin:1rem 39%;
     padding:0.25rem;
     font-size:1.2rem;
 }
