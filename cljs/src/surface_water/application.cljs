@@ -587,8 +587,7 @@
                          "Make sure it is at least 3 months (90 days)!"))
 
           :otherwise
-          (do (remove-layer "water")
-              (if (true? climatology)
+          (do (if (true? climatology)
                 (show-control! :month-control)
                 (hide-control! :month-control))
               (let [map-url (str "/get_water_map?"
@@ -656,6 +655,7 @@
     (set! (.-value start-date-picker) "2014-01-01")
     (set! (.-value end-date-picker) "2014-12-31")))
 
+;; FIXME: Finish implementing the commented out functions
 (defn init []
   (reset! google-map (create-map))
   ;; (create-drawing-manager)
@@ -666,5 +666,4 @@
   ;; (climatology-slider)
   ;; (init-export)
   (load-basic-maps)
-  ;; (refresh-image)
-  )
+  (refresh-image))
