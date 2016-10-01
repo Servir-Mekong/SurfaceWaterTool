@@ -446,7 +446,7 @@ nav ul li.highlight {
     font-size:0.8rem;
     color:#333;
     height:1rem;
-    width:4.5rem;
+    width:5rem;
 }
 
 #water #ui #controls ul li input[type=radio] {
@@ -487,6 +487,111 @@ nav ul li.highlight {
     height:1rem;
     width:80%;
     margin-left:10%;
+}
+
+/************************************/
+/* Application Page Expert Controls */
+/************************************/
+
+#water #ui #controls #expert-controls {
+    height:14rem;
+    width:80%;
+    margin:5% 10%;
+}
+
+#water #ui #controls #expert-controls ul {
+    height:12rem;
+    width:100%;
+    margin-left:0%;
+}
+
+#water #ui #controls #expert-controls ul li{
+    display:inline-block;
+    list-style-type:none;
+    padding:3px 0px;
+    width:100%;
+}
+
+#water #ui #controls #expert-controls ul li label {
+    height:100%;
+    vertical-align:middle;
+    font-size:0.8rem;
+    color:#333;
+    margin-left:5px;
+}
+
+#water #ui #controls #expert-controls ul li input[type=checkbox] {
+    height:100%;
+    vertical-align:middle;
+}
+
+#water #ui #controls #expert-controls ul li input[type=number] {
+    width:3rem;
+    height:100%;
+    vertical-align:middle;
+    font-size:0.8rem;
+    color:#333;
+}
+
+#water #ui #controls #expert-controls input[type=button] {
+    display:inline-block;
+    margin-top:5px;
+    margin-left:15%;
+    height:28px;
+    font-size:0.8rem;
+    color:#333;
+}
+
+#water #ui #controls #expert-controls ul li #month-control {
+    position:relative;
+    height:45px;
+    width:145px;
+    padding:5px;
+    margin:5px 0px 0px 10px;
+}
+
+#water #ui #controls #expert-controls ul li #month-control p {
+    font-size:0.8rem;
+    color:#333;
+    text-align:center;
+}
+
+#water #ui #controls #expert-controls ul li #month-control input {
+    position:absolute;
+    left:5;
+    top:25px;
+    width:145px;
+    height:22px;
+    outline:none;
+    overflow:hidden;
+    pointer-events:none;
+    cursor:pointer;
+}
+
+#water #ui #controls #expert-controls ul li #month-control input::-webkit-slider-thumb {
+    position:relative;
+    z-index:1;
+    outline:0;
+    pointer-events:all;
+}
+
+#water #ui #controls #expert-controls ul li #month-control input::-moz-range-thumb {
+    position:relative;
+    z-index:10;
+    -moz-appearance:none;
+    width:9px;
+    pointer-events:all;
+}
+
+#water #ui #controls #expert-controls ul li #month-control input::-moz-range-track {
+    position:relative;
+    z-index:-1;
+    background-color:rgba(100,100,100,1);
+    border:0;
+}
+
+#water #ui #controls #expert-controls ul li #month-control input[type=range]::-moz-focus-outer {
+    border:0;
 }
 
 /******************/

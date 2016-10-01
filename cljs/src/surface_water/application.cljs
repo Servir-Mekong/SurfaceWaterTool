@@ -64,7 +64,7 @@
 (defn uncheck! [id]
   (set! (.-checked (dom/getElement id)) false))
 
-(defonce month (r/atom 1))
+(defonce month (r/atom "1"))
 
 (def month-id-to-name
   {"1" "January"
@@ -84,60 +84,64 @@
   [:div#expert-controls
    [:ul
     [:li
-     [:label "Show months:"]
      [:input#climatology-input {:type "checkbox" :value "None"
                                 :on-click #(if (visible-control? :month-control)
                                              (hide-control! :month-control)
                                              (show-control! :month-control))}]
-     [:div#month-control (get-display-style :month-control)
+     [:label "Show months"]
+     [:div#month-control {:style (get-display-style :month-control)}
       [:p (str "Month: " (month-id-to-name @month))]
       [:input#month-slider {:type "range" :min "1" :max "12" :step "1"
                             :default-value "1"
                             :on-change #(reset! month
                                                 (.-value (.-currentTarget %)))}]]]
     [:li
-     [:label "Defringe images:"]
-     [:input#defringe-input {:type "checkbox" :value "None"}]]
+     [:input#defringe-input {:type "checkbox" :value "None"}]
+     [:label "Defringe images"]]
     [:li
-     [:label "Permanent water percentile:"]
-     [:input#percentile-input-perm {:type "number" :min "0" :max "100" :default-value "40"}]]
+     [:input#percentile-input-perm
+      {:type "number" :min "0" :max "100" :default-value "40"}]
+     [:label "Permanent water percentile"]]
     [:li
-     [:label "Temporary water percentile:"]
-     [:input#percentile-input-temp {:type "number" :min "0" :max "100" :default-value "8"}]]
+     [:input#percentile-input-temp
+      {:type "number" :min "0" :max "100" :default-value "8"}]
+     [:label "Temporary water percentile"]]
     [:li
-     [:label "Water threshold:"]
      [:input#water-threshold-input
-      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.3"}]]
+      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.3"}]
+     [:label "Water threshold"]]
     [:li
-     [:label "Vegetation threshold:"]
      [:input#veg-threshold-input
-      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.35"}]]
+      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.35"}]
+     [:label "Vegetation threshold"]]
     [:li
-     [:label "HAND threshold:"]
      [:input#hand-threshold-input
-      {:type "number" :min "0" :max "9999" :step "1" :default-value "25"}]]
+      {:type "number" :min "0" :max "9999" :step "1" :default-value "25"}]
+     [:label "HAND threshold"]]
     [:li
-     [:label "Cloud threshold:"]
      [:input#cloud-threshold-input
-      {:type "number" :min "0" :max "1" :step "0.05" :default-value "0"}]]]
-   [:input#expert-reset {:type "button" :value "Reset"
-                         :on-click (fn [_]
-                                     (uncheck! "climatology-input")
-                                     (uncheck! "defringe-input")
-                                     (set-val! "percentile-input-perm" "40")
-                                     (set-val! "percentile-input-temp" "8")
-                                     (set-val! "water-threshold-input" "0.3")
-                                     (set-val! "veg-threshold-input" "0.35")
-                                     (set-val! "hand-threshold-input" "25")
-                                     (set-val! "cloud-threshold-input" "0"))}]
-   [:input#expert-submit {:type "button" :value "Submit"}]])
+      {:type "number" :min "0" :max "1" :step "0.05" :default-value "0"}]
+     [:label "Cloud threshold"]]
+    [:li
+     [:input#expert-reset {:type "button" :value "Reset"
+                           :on-click (fn [_]
+                                       (uncheck! "climatology-input")
+                                       (uncheck! "defringe-input")
+                                       (set-val! "percentile-input-perm" "40")
+                                       (set-val! "percentile-input-temp" "8")
+                                       (set-val! "water-threshold-input" "0.3")
+                                       (set-val! "veg-threshold-input" "0.35")
+                                       (set-val! "hand-threshold-input" "25")
+                                       (set-val! "cloud-threshold-input" "0")
+                                       (hide-control! :month-control))}]
+     [:input#expert-submit {:type "button" :value "Submit"}]]]])
 
 (defn map-controls []
   [:div#controls
    [:h3 "Step 1: Select a time period for the calculation"]
    [:ul
     [:li [:input#start-date {:type "text"}]]
-    [:li "-"]
+    [:li [:b "-"]]
     [:li [:input#end-date {:type "text"}]]]
    [:h3 "Step 2: Update the map with the new water layer"]
    [:input {:type "button" :name "update-map" :value "Update Map"
