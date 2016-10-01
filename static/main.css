@@ -431,15 +431,8 @@ nav ul li.highlight {
     margin:5px 0px;
 }
 
-#water #ui #controls input[type=button] {
-    height:28px;
-    margin:2% 0% 2% 31%;
-    font-size:0.8rem;
-    color:#333;
-}
-
 #water #ui #controls ul {
-    height:28px;
+    height:2rem;
     margin:0% 0% 2% 10%;
 }
 
@@ -453,7 +446,7 @@ nav ul li.highlight {
     font-size:0.8rem;
     color:#333;
     height:1rem;
-    width:5rem;
+    width:4.5rem;
 }
 
 #water #ui #controls ul li input[type=radio] {
@@ -465,6 +458,13 @@ nav ul li.highlight {
     height:100%;
     vertical-align:middle;
     margin-left:5px;
+    font-size:0.8rem;
+    color:#333;
+}
+
+#water #ui #controls input[type=button] {
+    height:28px;
+    margin:2% 0% 2% 33%;
     font-size:0.8rem;
     color:#333;
 }
