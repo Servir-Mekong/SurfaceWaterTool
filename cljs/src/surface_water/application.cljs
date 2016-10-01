@@ -5,7 +5,10 @@
             [cognitect.transit :as transit]
             [cljs-http.client :as http]
             [cljs.core.async :refer [<!]])
-  (:require-macros [cljs.core.async.macros :refer [go]]))
+  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:import (goog.i18n DateTimeFormat)
+           (goog.i18n DateTimeParse)
+           (goog.ui InputDatePicker)))
 
 ;;===========================
 ;; Show/Hide Page Components
@@ -85,18 +88,37 @@
 (declare show-map! remove-map-features! enable-province-selection!
          enable-country-selection! enable-custom-polygon-selection!)
 
+(defonce start-date (atom nil))
+(defonce end-date   (atom nil))
+
+(defn attach-datepicker! [atom element]
+  (let [pattern   "yyyy'-'MM'-'dd"
+        formatter (DateTimeFormat. pattern)
+        parser    (DateTimeParse. pattern)]
+    (doto (InputDatePicker. formatter parser)
+      (.addEventListener
+       goog.ui.DatePicker.Events.CHANGE
+       (fn [evt] (reset! atom (.-date evt))))
+      (.decorate element))))
+
+(defn parse-date [js-date]
+  {:year  (.getFullYear js-date)
+   :month (inc (.getMonth js-date))
+   :date  (.getDate js-date)})
+
 (defn map-controls []
   [:div#controls
-   [:h3 "Step 1: Select a time period to use as the baseline EVI"]
-   [multi-range1]
-   [:h3 "Step 2: Select a time period to measure ∆EVI"]
-   [multi-range2]
-   [:h3 "Step 3: Update the map with the cumulative ∆EVI"]
+   [:h3 "Step 1: Select a time period for the calculation"]
+   [:ul
+    [:li [:input#start-date {:type "text" :placeholder "2014-01-01"}]]
+    [:li "-"]
+    [:li [:input#end-date {:type "text" :placeholder "2014-12-31"}]]]
+   [:h3 "Step 2: Update the map with the new water layer"]
    [:input {:type "button" :name "update-map" :value "Update Map"
             :on-click #(do (remove-map-features!)
                            (reset! polygon-selection-method "")
                            (show-map!))}]
-   [:h3 "Step 4: Choose a polygon selection method"]
+   [:h3 "Step 3: Choose a polygon selection method"]
    [:ul
     [:li
      [:input {:type "radio" :name "polygon-selection-method" :value "Province"
@@ -128,12 +150,14 @@
                              (remove-map-features!)
                              (enable-custom-polygon-selection!))}]
      [:label "Draw Polygon"]]]
-   [:h3 "Step 5: Click a polygon on the map or draw your own"]
+   [:h3 "Step 4: Click a polygon on the map or draw your own"]
    [:p#polygon
     (str @polygon-selection-method " Selection: ")
     [:em (clojure.string/join ", " @polygon-selection)]]
-   [:h3 "Step 6: Review the historical ∆EVI in the selection"]
-   [:div#chart {:style (get-display-style :chart)}]])
+   [:h3 "Step 5: Export the selected region's water data"]
+   [:input.filename.form-control
+    {:type "text" :name "filename"
+     :placeholder "default: SurfaceWater_Export_<year>"}]])
 
 ;;=========================
 ;; Application Page Layout
@@ -459,7 +483,7 @@
   (.push (.-overlayMapTypes @google-map)
          (get-ee-map-type ee-map-id ee-token)))
 
-(defn init [ee-map-id ee-token country-polygons province-polygons]
+(defn init-old [ee-map-id ee-token country-polygons province-polygons]
   (let [json-reader       (transit/reader :json)
         country-polygons  (transit/read json-reader country-polygons)
         province-polygons (transit/read json-reader province-polygons)]
@@ -473,3 +497,7 @@
     (reset! province-names province-polygons)
     (.addListener (.-data @google-map) "click" handle-polygon-click)
     (refresh-image ee-map-id ee-token)))
+
+(defn init []
+  (attach-datepicker! start-date (dom/getElement "start-date"))
+  (attach-datepicker! end-date (dom/getElement "end-date")))

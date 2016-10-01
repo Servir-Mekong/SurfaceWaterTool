@@ -76,4 +76,5 @@
 
 (defn ^:export main []
   (r/render [page-header] (dom/getElement "pageheader"))
-  (r/render [page-content] (dom/getElement "pagecontent")))
+  (r/render [page-content] (dom/getElement "pagecontent"))
+  (app/init))
