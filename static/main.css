@@ -485,67 +485,6 @@ nav ul li.highlight {
     width:385px;
 }
 
-/*****************************/
-/* Multi-Range Slider Widget */
-/*****************************/
-
-.range-slider {
-    position:relative;
-    width:200px;
-    height:45px;
-    margin-left:20%;
-}
-
-.range-slider p {
-    font-size:0.8rem;
-    color:#333;
-    text-align:center;
-}
-
-.range-slider input {
-    position:absolute;
-    left:0;
-    top:20px;
-    width:200px;
-    height:22px;
-    outline:none;
-    overflow:hidden;
-    pointer-events:none;
-    cursor:pointer;
-}
-
-.range-slider input::-webkit-slider-thumb {
-    position:relative;
-    z-index:1;
-    outline:0;
-    pointer-events:all;
-}
-
-.range-slider input::-moz-range-thumb {
-    position:relative;
-    z-index:10;
-    -moz-appearance:none;
-    width:9px;
-    pointer-events:all;
-}
-
-.range-slider input::-moz-range-track {
-    position:relative;
-    z-index:-1;
-    background-color:rgba(100,100,100,1);
-    border:0;
-}
-
-.range-slider input:last-of-type::-moz-range-track {
-    -moz-appearance:none;
-    background:none transparent;
-    border:0;
-}
-
-.range-slider input[type=range]::-moz-focus-outer {
-    border:0;
-}
-
 /******************/
 /* Spinner Widget */
 /******************/

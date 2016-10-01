@@ -30,43 +30,9 @@
 (defn hide-control! [control]
   (swap! visible-controls disj control))
 
-;;===========================
-;; Multi-Range Slider Widget
-;;===========================
-
-(defonce slider-vals (r/atom {}))
-
-(defn get-slider-vals [slider-id]
-  (into [] (sort (vals (@slider-vals slider-id)))))
-
-(defn get-formatted-slider-vals [slider-id]
-  (let [[min max] (get-slider-vals slider-id)]
-    (str min " - " max)))
-
-(defn update-slider-vals! [slider-id idx slider-val]
-  (swap! slider-vals assoc-in [slider-id idx] (str slider-val)))
-
-(defn multi-range [slider-id min max step low high]
-  (update-slider-vals! slider-id 0 low)
-  (update-slider-vals! slider-id 1 high)
-  (fn []
-    [:div.range-slider
-     [:p (get-formatted-slider-vals slider-id)]
-     [:input {:type "range" :min (str min) :max (str max)
-              :step (str step) :default-value (str low)
-              :on-change #(let [val (.-value (.-currentTarget %))]
-                            (update-slider-vals! slider-id 0 val))}]
-     [:input {:type "range" :min (str min) :max (str max)
-              :step (str step) :default-value (str high)
-              :on-change #(let [val (.-value (.-currentTarget %))]
-                            (update-slider-vals! slider-id 1 val))}]]))
-
 ;;==============
 ;; Map Controls
 ;;==============
-
-(defonce multi-range1 (multi-range :baseline 2000 2017 1 2006 2008))
-(defonce multi-range2 (multi-range :study 2000 2017 1 2009 2011))
 
 (defonce polygon-selection-method (r/atom ""))
 
