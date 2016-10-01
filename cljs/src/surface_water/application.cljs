@@ -314,9 +314,13 @@
 (defn create-map []
   (google.maps.Map.
    (dom/getElement "map")
-   #js {:center #js {:lng 107.5 :lat 17.0}
-        :zoom 5
-        :maxZoom 12
+   ;; #js {:center #js {:lng 107.5 :lat 17.0}
+   ;;      :zoom 5
+   ;;      :maxZoom 12
+   ;;      :streetViewControl false}
+   #js {:center #js {:lng 104.0 :lat 12.5}
+        :zoom 7
+        :maxZoom 14
         :streetViewControl false}))
 
 (defn clear-chart! []
