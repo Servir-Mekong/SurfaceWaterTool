@@ -51,7 +51,7 @@
     {:visibility "visible"}
     {:visibility "hidden"}))
 
-(declare show-map! remove-map-features! enable-province-selection!
+(declare remove-map-features! enable-province-selection!
          enable-country-selection! enable-custom-polygon-selection! get-slider-vals
          refresh-image)
 
@@ -144,7 +144,6 @@
             :on-click #(do
                          ;; (remove-map-features!)
                          ;; (reset! polygon-selection-method "")
-                         ;; (show-map!)
                          (refresh-image))}]
    [:h3 "Step 3: Choose a polygon selection method"]
    [:ul
@@ -458,27 +457,6 @@
 ;;                                    #(custom-overlay-handler drawing-manager %))
 ;;     (.setMap drawing-manager @google-map)
 ;;     (reset! active-drawing-manager drawing-manager)))
-
-;; (defn show-map! []
-;;   (let [overlay-map-types (.-overlayMapTypes @google-map)
-;;         baseline          (get-slider-vals :baseline)
-;;         study             (get-slider-vals :study)
-;;         map-url           (str "/getmap?"
-;;                                "refLow=" (baseline 0) "&"
-;;                                "refHigh=" (baseline 1) "&"
-;;                                "studyLow=" (study 0) "&"
-;;                                "studyHigh=" (study 1))]
-;;     (show-progress!)
-;;     (.clear overlay-map-types)
-;;     (log "AJAX Request: " map-url)
-;;     (go (let [response (<! (http/get map-url))]
-;;           (log "AJAX Response: " response)
-;;           (if (:success response)
-;;             (let [ee-map-id (-> response :body :eeMapId)
-;;                   ee-token  (-> response :body :eeToken)]
-;;               (.push overlay-map-types (get-ee-map-type ee-map-id ee-token)))
-;;             (js/alert "An error occurred! Please refresh the page."))
-;;           (hide-progress!)))))
 
 ;; (defn handle-polygon-click [event]
 ;;   (show-progress!)
