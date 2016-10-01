@@ -168,11 +168,11 @@
 (declare update-opacity!)
 
 (defn content [page-visibility]
-  [:div#ecodash page-visibility
+  [:div#water page-visibility
    [:div#map]
    [:div#ui {:style (get-display-style :ui)}
     [:header
-     [:h1 "SurfaceWaterTool Controls"]
+     [:h1 "Surface Water Tool Controls"]
      [:div#collapse-button {:on-click (fn []
                                         (hide-control! :ui)
                                         (show-control! :settings-button))}
@@ -206,16 +206,18 @@
                          (hide-control! :settings-button)
                          (show-control! :ui))}]]
    [:div#legend
-    [:h2 "∆EVI"]
+    [:h2 "Legend"]
     [:table
      [:tbody
       [:tr
-       [:td {:row-span "3"} [:img {:src "/static/images/mylegend.png"}]]
-       [:td "Increase"]]
+       [:td [:div#legend-study-area]]
+       [:td "Study area"]]
       [:tr
-       [:td "Stable"]]
+       [:td [:div#legend-permanent-water]]
+       [:td "Permanent water"]]
       [:tr
-       [:td "Decrease"]]]]]
+       [:td [:div#legend-temporary-water]]
+       [:td "Temporary water"]]]]]
    [:div#opacity
     [:p (str "Opacity: " @opacity)]
     [:input {:type "range" :min "0" :max "1" :step "0.1" :default-value "1"

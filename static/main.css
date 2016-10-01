@@ -168,7 +168,7 @@ nav ul li.highlight {
 /* Application Page Toplevel Components */
 /****************************************/
 
-#ecodash {
+#water {
     position:absolute;
     top:0px;
     left:0px;
@@ -176,7 +176,7 @@ nav ul li.highlight {
     width:100%;
 }
 
-#ecodash #map {
+#water #map {
     position:absolute;
     top:0px;
     left:0px;
@@ -184,7 +184,7 @@ nav ul li.highlight {
     width:100%;
 }
 
-#ecodash #ui {
+#water #ui {
     position:absolute;
     top:0px;
     right:0px;
@@ -194,7 +194,7 @@ nav ul li.highlight {
     padding:0.5rem;
 }
 
-#ecodash #settings-button {
+#water #settings-button {
     position:absolute;
     top:0px;
     right:0px;
@@ -208,7 +208,7 @@ nav ul li.highlight {
     border-bottom-left-radius:3px;
 }
 
-#ecodash #general-info {
+#water #general-info {
     position:absolute;
     top:15%;
     left:20%;
@@ -221,49 +221,49 @@ nav ul li.highlight {
     z-index:100;
 }
 
-#ecodash #general-info h1 {
+#water #general-info h1 {
     padding:0rem 0rem 0.5rem 1rem;
     font-size:3rem;
     font-weight:bold;
     color:gray;
 }
 
-#ecodash #general-info h2 {
+#water #general-info h2 {
     padding:0rem 0rem 1rem 1rem;
     font-size:2rem;
     font-weight:400;
     color:gray;
 }
 
-#ecodash #general-info h3 {
+#water #general-info h3 {
     padding:0rem 0rem 0.75rem 1rem;
     font-size:1.2rem;
     font-weight:400;
     color:#3C948B;
 }
 
-#ecodash #general-info p {
+#water #general-info p {
     padding:0.5rem;
     font-size:1rem;
 }
 
-#ecodash #general-info input {
+#water #general-info input {
     margin:0.5rem 39%;
     padding:0.25rem;
     font-size:1.2rem;
 }
 
-#ecodash #legend {
+#water #legend {
     position:absolute;
     left:0px;
     bottom:55px;
-    width:80px;
+    width:145px;
     background-color:white;
     padding:5px;
     border-top-right-radius:3px;
 }
 
-#ecodash #legend h2 {
+#water #legend h2 {
     font-size:0.9rem;
     font-weight:bold;
     color:gray;
@@ -271,39 +271,51 @@ nav ul li.highlight {
     margin:4px;
 }
 
-#ecodash #legend table td {
+#water #legend table td {
     font-size:0.8rem;
+    padding:2px;
 }
 
-#ecodash #legend table td:last-child {
-    padding-left:5px;
+#water #legend table td #legend-study-area {
+    height:16px;
+    width:16px;
+    background-color:white;
+    border:2px solid black;
 }
 
-#ecodash #legend table td img {
-    height:100px;
+#water #legend table td #legend-permanent-water {
+    height:20px;
+    width:20px;
+    background-color:#756bb1;
 }
 
-#ecodash #opacity {
+#water #legend table td #legend-temporary-water {
+    height:20px;
+    width:20px;
+    background-color:#bcbddc;
+}
+
+#water #opacity {
     position:absolute;
     left:0px;
     bottom:0px;
     height:45px;
-    width:80px;
+    width:145px;
     background-color:white;
     padding:5px;
 }
 
-#ecodash #opacity p {
+#water #opacity p {
     font-size:0.8rem;
     color:#333;
     text-align:center;
 }
 
-#ecodash #opacity input {
+#water #opacity input {
     position:absolute;
     left:5;
     top:25px;
-    width:80px;
+    width:145px;
     height:22px;
     outline:none;
     overflow:hidden;
@@ -311,14 +323,14 @@ nav ul li.highlight {
     cursor:pointer;
 }
 
-#ecodash #opacity input::-webkit-slider-thumb {
+#water #opacity input::-webkit-slider-thumb {
     position:relative;
     z-index:1;
     outline:0;
     pointer-events:all;
 }
 
-#ecodash #opacity input::-moz-range-thumb {
+#water #opacity input::-moz-range-thumb {
     position:relative;
     z-index:10;
     -moz-appearance:none;
@@ -326,18 +338,18 @@ nav ul li.highlight {
     pointer-events:all;
 }
 
-#ecodash #opacity input::-moz-range-track {
+#water #opacity input::-moz-range-track {
     position:relative;
     z-index:-1;
     background-color:rgba(100,100,100,1);
     border:0;
 }
 
-#ecodash #opacity input[type=range]::-moz-focus-outer {
+#water #opacity input[type=range]::-moz-focus-outer {
     border:0;
 }
 
-#ecodash p#feedback {
+#water p#feedback {
     position:absolute;
     bottom:0;
     left:45%;
@@ -356,27 +368,27 @@ nav ul li.highlight {
 /* Application Page Sidebar Header */
 /***********************************/
 
-#ecodash #ui header {
+#water #ui header {
     height:1.5rem;
     margin-bottom:0.5rem;
     border-bottom:2px solid #666;
 }
 
-#ecodash #ui header h1 {
+#water #ui header h1 {
     display:inline;
     font-size:1.2rem;
     font-weight:bold;
     color:gray;
 }
 
-#ecodash #ui header #collapse-button {
+#water #ui header #collapse-button {
     display:inline;
     float:right;
     margin-right:10px;
     cursor:pointer;
 }
 
-#ecodash #ui header #info-button {
+#water #ui header #info-button {
     display:inline;
     float:right;
     margin:2px 10px 0px 0px;
@@ -400,49 +412,56 @@ nav ul li.highlight {
 /* Application Page Map Controls */
 /*********************************/
 
-#ecodash #ui #controls {
+#water #ui #controls {
     height:95%;
     overflow:scroll;
 }
 
-#ecodash #ui #controls h2 {
+#water #ui #controls h2 {
     font-size:1rem;
     font-weight:bold;
     color:gray;
     margin-bottom:5px;
 }
 
-#ecodash #ui #controls h3 {
+#water #ui #controls h3 {
     font-size:0.8rem;
     font-weight:bold;
     color:gray;
     margin:5px 0px;
 }
 
-#ecodash #ui #controls input[type=button] {
+#water #ui #controls input[type=button] {
     height:28px;
     margin:2% 0% 2% 31%;
     font-size:0.8rem;
     color:#333;
 }
 
-#ecodash #ui #controls ul {
+#water #ui #controls ul {
     height:28px;
-    margin-left:10%;
+    margin:0% 0% 2% 10%;
 }
 
-#ecodash #ui #controls ul li {
+#water #ui #controls ul li {
     display:inline;
     list-style-type:none;
     padding:7px 10px;
 }
 
-#ecodash #ui #controls ul li input[type=radio] {
+#water #ui #controls ul li input[type=text] {
+    font-size:0.8rem;
+    color:#333;
+    height:1rem;
+    width:5rem;
+}
+
+#water #ui #controls ul li input[type=radio] {
     height:100%;
     vertical-align:middle;
 }
 
-#ecodash #ui #controls ul li label {
+#water #ui #controls ul li label {
     height:100%;
     vertical-align:middle;
     margin-left:5px;
@@ -450,18 +469,18 @@ nav ul li.highlight {
     color:#333;
 }
 
-#ecodash #ui #controls p#polygon {
+#water #ui #controls p#polygon {
     margin-left:12%;
     padding:5px;
     font-size:0.8rem;
     color:#333;
 }
 
-#ecodash #ui #controls p#polygon em {
+#water #ui #controls p#polygon em {
     font-style:italic;
 }
 
-#ecodash #ui #controls #chart {
+#water #ui #controls #chart {
     height:200px;
     width:385px;
 }
