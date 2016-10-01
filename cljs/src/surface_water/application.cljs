@@ -52,38 +52,100 @@
     {:visibility "hidden"}))
 
 (declare show-map! remove-map-features! enable-province-selection!
-         enable-country-selection! enable-custom-polygon-selection!)
+         enable-country-selection! enable-custom-polygon-selection! get-slider-vals
+         refresh-image)
 
-(defonce start-date (atom nil))
-(defonce end-date   (atom nil))
+(defn set-val! [id val]
+  (set! (.-value (dom/getElement id)) val))
 
-(defn attach-datepicker! [atom element]
-  (let [pattern   "yyyy'-'MM'-'dd"
-        formatter (DateTimeFormat. pattern)
-        parser    (DateTimeParse. pattern)]
-    (doto (InputDatePicker. formatter parser)
-      (.addEventListener
-       goog.ui.DatePicker.Events.CHANGE
-       (fn [evt] (reset! atom (.-date evt))))
-      (.decorate element))))
+(defn check! [id]
+  (set! (.-checked (dom/getElement id)) true))
 
-(defn parse-date [js-date]
-  {:year  (.getFullYear js-date)
-   :month (inc (.getMonth js-date))
-   :date  (.getDate js-date)})
+(defn uncheck! [id]
+  (set! (.-checked (dom/getElement id)) false))
+
+(defonce month (r/atom 1))
+
+(def month-id-to-name
+  {"1" "January"
+   "2" "February"
+   "3" "March"
+   "4" "April"
+   "5" "May"
+   "6" "June"
+   "7" "July"
+   "8" "August"
+   "9" "September"
+   "10" "October"
+   "11" "November"
+   "12" "December"})
+
+(defn expert-controls []
+  [:div#expert-controls
+   [:ul
+    [:li
+     [:label "Show months:"]
+     [:input#climatology-input {:type "checkbox" :value "None"
+                                :on-click #(if (visible-control? :month-control)
+                                             (hide-control! :month-control)
+                                             (show-control! :month-control))}]
+     [:div#month-control (get-display-style :month-control)
+      [:p (str "Month: " (month-id-to-name @month))]
+      [:input#month-slider {:type "range" :min "1" :max "12" :step "1"
+                            :default-value "1"
+                            :on-change #(reset! month
+                                                (.-value (.-currentTarget %)))}]]]
+    [:li
+     [:label "Defringe images:"]
+     [:input#defringe-input {:type "checkbox" :value "None"}]]
+    [:li
+     [:label "Permanent water percentile:"]
+     [:input#percentile-input-perm {:type "number" :min "0" :max "100" :default-value "40"}]]
+    [:li
+     [:label "Temporary water percentile:"]
+     [:input#percentile-input-temp {:type "number" :min "0" :max "100" :default-value "8"}]]
+    [:li
+     [:label "Water threshold:"]
+     [:input#water-threshold-input
+      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.3"}]]
+    [:li
+     [:label "Vegetation threshold:"]
+     [:input#veg-threshold-input
+      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.35"}]]
+    [:li
+     [:label "HAND threshold:"]
+     [:input#hand-threshold-input
+      {:type "number" :min "0" :max "9999" :step "1" :default-value "25"}]]
+    [:li
+     [:label "Cloud threshold:"]
+     [:input#cloud-threshold-input
+      {:type "number" :min "0" :max "1" :step "0.05" :default-value "0"}]]]
+   [:input#expert-reset {:type "button" :value "Reset"
+                         :on-click (fn [_]
+                                     (uncheck! "climatology-input")
+                                     (uncheck! "defringe-input")
+                                     (set-val! "percentile-input-perm" "40")
+                                     (set-val! "percentile-input-temp" "8")
+                                     (set-val! "water-threshold-input" "0.3")
+                                     (set-val! "veg-threshold-input" "0.35")
+                                     (set-val! "hand-threshold-input" "25")
+                                     (set-val! "cloud-threshold-input" "0"))}]
+   [:input#expert-submit {:type "button" :value "Submit"}]])
 
 (defn map-controls []
   [:div#controls
    [:h3 "Step 1: Select a time period for the calculation"]
    [:ul
-    [:li [:input#start-date {:type "text" :placeholder "2014-01-01"}]]
+    [:li [:input#start-date {:type "text"}]]
     [:li "-"]
-    [:li [:input#end-date {:type "text" :placeholder "2014-12-31"}]]]
+    [:li [:input#end-date {:type "text"}]]]
    [:h3 "Step 2: Update the map with the new water layer"]
    [:input {:type "button" :name "update-map" :value "Update Map"
-            :on-click #(do (remove-map-features!)
-                           (reset! polygon-selection-method "")
-                           (show-map!))}]
+            :on-click #(do
+                         ;; (remove-map-features!)
+                         ;; (reset! polygon-selection-method "")
+                         ;; (show-map!)
+                         (refresh-image))}]
    [:h3 "Step 3: Choose a polygon selection method"]
    [:ul
     [:li
@@ -123,7 +185,8 @@
    [:h3 "Step 5: Export the selected region's water data"]
    [:input.filename.form-control
     {:type "text" :name "filename"
-     :placeholder "default: SurfaceWater_Export_<year>"}]])
+     :placeholder "default: SurfaceWater_Export_<year>"}]
+   [expert-controls]])
 
 ;;=========================
 ;; Application Page Layout
@@ -199,6 +262,14 @@
 ;;===================
 
 (defonce google-map (atom nil))
+
+(defonce start-date (atom nil))
+
+(defonce end-date   (atom nil))
+
+(def *minimum-time-period-regular* 90) ;; days
+
+(def *minimum-time-period-climatology* 1095) ;; days
 
 (defonce province-names (atom []))
 
@@ -378,23 +449,13 @@
                          #js {:drawingMode google.maps.drawing.OverlayType.POLYGON
                               :drawingControl false
                               :polygonOptions
-                              #js {:fillColor (css-colors counter)
-                                   :strokeColor (css-colors counter)}})]
+                              #js {:fillColor "#ff0000"
+                                   :strokeColor "#ff0000"}})]
     (google.maps.event.addListener drawing-manager
                                    "overlaycomplete"
                                    #(custom-overlay-handler drawing-manager %))
     (.setMap drawing-manager @google-map)
     (reset! active-drawing-manager drawing-manager)))
-
-(defn get-ee-map-type [ee-map-id ee-token]
-  (google.maps.ImageMapType.
-   #js {:name "ecomap"
-        :opacity 1.0
-        :tileSize (google.maps.Size. 256 256)
-        :getTileUrl (fn [tile zoom]
-                      (str "https://earthengine.googleapis.com/map/"
-                           ee-map-id "/" zoom "/" (.-x tile) "/" (.-y tile)
-                           "?token=" ee-token))}))
 
 (defn show-map! []
   (let [overlay-map-types (.-overlayMapTypes @google-map)
@@ -447,10 +508,6 @@
               (js/alert "An error occurred! Please refresh the page."))
             (hide-progress!))))))
 
-(defn refresh-image [ee-map-id ee-token]
-  (.push (.-overlayMapTypes @google-map)
-         (get-ee-map-type ee-map-id ee-token)))
-
 (defn init-old [ee-map-id ee-token country-polygons province-polygons]
   (let [json-reader       (transit/reader :json)
         country-polygons  (transit/read json-reader country-polygons)
@@ -464,8 +521,146 @@
     (reset! country-names country-polygons)
     (reset! province-names province-polygons)
     (.addListener (.-data @google-map) "click" handle-polygon-click)
-    (refresh-image ee-map-id ee-token)))
+    (show-basic-map ee-map-id ee-token)))
+
+(defn get-ee-map-type [ee-map-id ee-token layer-name]
+  (google.maps.ImageMapType.
+   #js {:name layer-name
+        :opacity 1.0
+        :tileSize (google.maps.Size. 256 256)
+        :getTileUrl (fn [tile zoom]
+                      (str "https://earthengine.googleapis.com/map/"
+                           ee-map-id "/" zoom "/" (.-x tile) "/" (.-y tile)
+                           "?token=" ee-token))}))
+
+(defn show-basic-map [ee-map-id ee-token layer-name]
+  (.push (.-overlayMapTypes @google-map)
+         (get-ee-map-type ee-map-id ee-token layer-name)))
+
+(defn checked? [id]
+  (.-checked (dom/getElement id)))
+
+(defn val-as-float [id]
+  (js/parseFloat (.-value (dom/getElement id))))
+
+(defn ms-to-days [milliseconds]
+  (-> milliseconds
+      (/ 1000)
+      (/ 60)
+      (/ 60)
+      (/ 24)))
+
+(defn number-of-days [start-date end-date]
+  (ms-to-days (- end-date start-date)))
+
+(defn remove-layer [layer-name]
+  (let [map-types (.-overlayMapTypes @google-map)]
+    (.forEach map-types (fn [map-type index]
+                          (if (and map-type (= (.-name map-type) layer-name))
+                            (.removeAt map-types index))))))
+
+;; FIXME: Need to create the 9 advanced page components with proper ids
+;; FIXME: Store params in an atom and skip the AJAX query if no parameters
+;;        have changed since last time.
+(defn refresh-image []
+  (let [time-start   @start-date
+        time-end     @end-date
+        climatology  (checked? "climatology-input")
+        month-index  @month
+        defringe     (checked? "defringe-input")
+        pcnt-perm    (val-as-float "percentile-input-perm")
+        pcnt-temp    (val-as-float "percentile-input-temp")
+        water-thresh (val-as-float "water-threshold-input")
+        veg-thresh   (val-as-float "veg-threshold-input")
+        hand-thresh  (val-as-float "hand-threshold-input")
+        cloud-thresh (val-as-float "cloud-threshold-input")]
+    (cond (and (true? climatology)
+               (< (number-of-days time-start time-end)
+                  *minimum-time-period-climatology*))
+          (js/alert (str "Warning! Time period for climatology is too short! "
+                         "Make sure it is at least 3 years (1095 days)!"))
+
+          (< (number-of-days time-start time-end) *minimum-time-period-regular*)
+          (js/alert (str "Warning! Time period is too short! "
+                         "Make sure it is at least 3 months (90 days)!"))
+
+          :otherwise
+          (do (if (true? climatology)
+                (show-control! :month-control)
+                (hide-control! :month-control))
+              (let [map-url (str "/get_water_map?"
+                                 "time_start=" time-start "&"
+                                 "time_end=" time-end "&"
+                                 "climatology=" climatology "&"
+                                 "month_index=" month-index "&"
+                                 "defringe=" defringe "&"
+                                 "pcnt_perm=" pcnt-perm "&"
+                                 "pcnt_temp=" pcnt-temp "&"
+                                 "water_thresh=" water-thresh "&"
+                                 "veg_thresh=" veg-thresh "&"
+                                 "hand_thresh=" hand-thresh "&"
+                                 "cloud_thresh=" cloud-thresh)]
+                (show-progress!)
+                (log "AJAX Request: " map-url)
+                (go (let [response (<! (http/get map-url))]
+                      (log "AJAX Response: " response)
+                      (if (:success response)
+                        (let [ee-map-id (-> response :body :eeMapId)
+                              ee-token  (-> response :body :eeToken)]
+                          (remove-layer "water")
+                          (show-basic-map ee-map-id ee-token "water"))
+                        (js/alert "An error occurred! Please refresh the page."))
+                      (hide-progress!))))))))
+
+;; FIXME: Should we reduce these layers' opacity or simply not show them at all?
+(defn load-basic-maps []
+  (let [map-url "/get_basic_maps"]
+    (show-progress!)
+    (log "AJAX Request: " map-url)
+    (go (let [response (<! (http/get map-url))]
+          (log "AJAX Response: " response)
+          (if (:success response)
+            (let [ee-map-id-border (-> response :body :eeMapId_border)
+                  ee-token-border  (-> response :body :eeToken_border)
+                  ee-map-id-fill   (-> response :body :eeMapId_fill)
+                  ee-token-fill    (-> response :body :eeToken_fill)]
+              ;; (show-basic-map ee-map-id-fill ee-token-fill "AoI_fill")
+              (show-basic-map ee-map-id-border ee-token-border "AoI_border"))
+            (js/alert "An error occurred! Please refresh the page."))
+          (hide-progress!)))))
+
+(defn parse-date [js-date]
+  {:year  (.getFullYear js-date)
+   :month (inc (.getMonth js-date))
+   :date  (.getDate js-date)})
+
+(defn attach-datepicker! [atom element]
+  (let [pattern   "yyyy'-'MM'-'dd"
+        formatter (DateTimeFormat. pattern)
+        parser    (DateTimeParse. pattern)]
+    (doto (InputDatePicker. formatter parser)
+      (.addEventListener
+       goog.ui.DatePicker.Events.CHANGE
+       (fn [evt] (reset! atom (.-date evt))))
+      (.decorate element))))
+
+(defn init-date-pickers []
+  (let [start-date-picker (dom/getElement "start-date")
+        end-date-picker   (dom/getElement "end-date")]
+    (attach-datepicker! start-date start-date-picker)
+    (attach-datepicker! end-date end-date-picker)
+    (set! (.-value start-date-picker) "2014-01-01")
+    (set! (.-value end-date-picker) "2014-12-31")))
 
 (defn init []
-  (attach-datepicker! start-date (dom/getElement "start-date"))
-  (attach-datepicker! end-date (dom/getElement "end-date")))
+  (reset! google-map (create-map))
+  ;; (create-drawing-manager)
+  (init-date-pickers)
+  ;; (init-region-picker)
+  ;; (opacity-sliders)
+  ;; (expert-submit)
+  ;; (climatology-slider)
+  ;; (init-export)
+  (load-basic-maps)
+  ;; (refresh-image)
+  )
