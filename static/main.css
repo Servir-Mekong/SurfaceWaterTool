@@ -428,12 +428,12 @@ nav ul li.highlight {
     font-size:0.8rem;
     font-weight:bold;
     color:gray;
-    margin:5px 0px;
+    margin:0.5rem 0rem;
 }
 
 #water #ui #controls ul {
     height:2rem;
-    margin:0% 0% 2% 10%;
+    margin-left:10%;
 }
 
 #water #ui #controls ul li {
@@ -464,7 +464,7 @@ nav ul li.highlight {
 
 #water #ui #controls input[type=button] {
     height:28px;
-    margin:2% 0% 2% 33%;
+    margin-left:33%;
     font-size:0.8rem;
     color:#333;
 }
@@ -478,6 +478,15 @@ nav ul li.highlight {
 
 #water #ui #controls p#polygon em {
     font-style:italic;
+}
+
+#water #ui #controls input#export-filename {
+    font-size:0.8rem;
+    font-style:italic;
+    color:#333;
+    height:1rem;
+    width:80%;
+    margin-left:10%;
 }
 
 /******************/

@@ -181,9 +181,8 @@
     (str @polygon-selection-method " Selection: ")
     [:em (clojure.string/join ", " @polygon-selection)]]
    [:h3 "Step 5: Export the selected region's water data"]
-   [:input.filename.form-control
-    {:type "text" :name "filename"
-     :placeholder "default: SurfaceWater_Export_<year>"}]
+   [:input#export-filename {:type "text" :name "export-filename"
+                            :placeholder "default: SurfaceWater_Export_<year>"}]
    [expert-controls]])
 
 ;;=========================
