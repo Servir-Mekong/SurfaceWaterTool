@@ -263,10 +263,6 @@
 
 (defonce google-map (atom nil))
 
-(defonce start-date (atom nil))
-
-(defonce end-date   (atom nil))
-
 (def *minimum-time-period-regular* 90) ;; days
 
 (def *minimum-time-period-climatology* 1095) ;; days
@@ -309,6 +305,8 @@
    "SlateGray" "SlateGrey" "Snow" "SpringGreen" "SteelBlue" "Tan" "Teal" "Thistle"
    "Tomato" "Turquoise" "Violet" "Wheat" "White" "WhiteSmoke" "Yellow"
    "YellowGreen"])
+
+(declare get-ee-map-type show-basic-map)
 
 (defn log [& vals]
   (.log js/console (apply str vals)))
@@ -551,7 +549,8 @@
       (/ 24)))
 
 (defn number-of-days [start-date end-date]
-  (ms-to-days (- end-date start-date)))
+  (ms-to-days (- (.getTime (js/Date. end-date))
+                 (.getTime (js/Date. start-date)))))
 
 (defn remove-layer [layer-name]
   (let [map-types (.-overlayMapTypes @google-map)]
@@ -562,8 +561,8 @@
 ;; FIXME: Store params in an atom and skip the AJAX query if no parameters
 ;;        have changed since last time.
 (defn refresh-image []
-  (let [time-start   @start-date
-        time-end     @end-date
+  (let [time-start   (.-value (dom/getElement "start-date"))
+        time-end     (.-value (dom/getElement "end-date"))
         climatology  (checked? "climatology-input")
         month-index  @month
         defringe     (checked? "defringe-input")
@@ -635,21 +634,21 @@
    :date  (.getDate js-date)})
 
 ;; FIXME: Set the min date to 1988-01-01 and the max date to today (js/Date.)
-(defn attach-datepicker! [atom element]
+(defn attach-datepicker! [element]
   (let [pattern   "yyyy'-'MM'-'dd"
         formatter (DateTimeFormat. pattern)
         parser    (DateTimeParse. pattern)]
     (doto (InputDatePicker. formatter parser)
-      (.addEventListener
-       goog.ui.DatePicker.Events.CHANGE
-       (fn [evt] (reset! atom (.-date evt))))
+      ;; (.addEventListener
+      ;;  goog.ui.DatePicker.Events.CHANGE
+      ;;  (fn [evt] (reset! atom (.-date evt))))
       (.decorate element))))
 
 (defn init-date-pickers []
   (let [start-date-picker (dom/getElement "start-date")
         end-date-picker   (dom/getElement "end-date")]
-    (attach-datepicker! start-date start-date-picker)
-    (attach-datepicker! end-date end-date-picker)
+    (attach-datepicker! start-date-picker)
+    (attach-datepicker! end-date-picker)
     (set! (.-value start-date-picker) "2014-01-01")
     (set! (.-value end-date-picker) "2014-12-31")))
 
