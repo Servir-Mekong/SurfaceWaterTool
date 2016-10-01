@@ -1,22 +1,3 @@
-/**
- * @fileoverview Runs the Surface Water Tool application. The code is executed in the
- * user's browser. It communicates with the App Engine backend, renders output
- * to the screen, and handles user interactions.
- */
-
-// Set the namespace
-water = {};
-
-// Starts the Surface Water Tool application. The main entry point for the app.
-water.boot = function() {
-	
-	// create the app
-	var app = new water.App();
-	
-	// save app to instance
-	water.instance = app;
-};
-
 // ---------------------------------------------------------------------------------- //
 // The application
 // ---------------------------------------------------------------------------------- //
@@ -46,102 +27,6 @@ water.App = function() {
   
    // Load the default image.
   this.refreshImage();
-};
-
-/**
- * Creates a Google Map for the given map type rendered.
- * The map is anchored to the DOM element with the CSS class 'map'.
- * @return {google.maps.Map} A map instance with the map type rendered.
- */
-water.App.createMap = function() {
-  var mapOptions = {
-    center: water.App.DEFAULT_CENTER,
-    zoom: water.App.DEFAULT_ZOOM,
-	maxZoom: water.App.MAX_ZOOM,
-	//disableDefaultUI: true,
-	streetViewControl: false
-  };
-  var mapEl = $('.map').get(0);
-  var map = new google.maps.Map(mapEl, mapOptions);
-  return map;
-};
-
-// Load basic maps upon loading the main web page
-water.App.prototype.loadBasicMaps = function() {
-  var name1 = 'AoI_border';
-  var name2 = 'AoI_fill';
-  $.ajax({
-    url: "/get_basic_maps",
-    dataType: "json",
-    success: function (data) {
-	  water.instance.showBasicMap(data.eeMapId_fill, data.eeToken_fill, name2);
-	  water.instance.setLayerOpacity('AoI_fill', parseFloat($("#aoiControl").val()));
-	  water.instance.showBasicMap(data.eeMapId_border, data.eeToken_border, name1);
-    },
-    error: function (data) {
-      console.log(data.responseText);
-    }
-  });
-}
-
-// Push map with mapId and token obtained from EE Python
-water.App.prototype.showBasicMap = function(eeMapId, eeToken, name) {
-  this.showLoadingAlert(name);
-  //var mapType = water.App.getEeMapType(eeMapId, eeToken, name);  // obsolete, using ee.MapLayerOverlay instead
-  var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
-  this.map.overlayMapTypes.push(mapType);
-  // handle layer loading alerts
-  mapType.addTileCallback((function(event) {
-    if (event.count === 0) {
-      this.removeLoadingAlert(name);
-    } else {
-	  this.showLoadingAlert(name);
-	}
-  }).bind(this));
-};
-
-// ---------------------------------------------------------------------------------- //
-// Date picker
-// ---------------------------------------------------------------------------------- //
-
-// Initializes the date pickers.
-water.App.prototype.initDatePickers = function() {
-  // Create the date pickers.
-  $('.date-picker').datepicker({
-    format: 'yyyy-mm-dd',
-    viewMode: 'days',
-    minViewMode: 'days',
-    autoclose: true,
-    startDate: new Date('1988-01-01'),
-    endDate: new Date()
-  });
-  $('.date-picker-2').datepicker({
-    format: 'yyyy-mm-dd',
-    viewMode: 'days',
-    minViewMode: 'days',
-    autoclose: true,
-    startDate: new Date('1988-01-01'),
-    endDate: new Date()
-  });
-
-  // Set default dates.
-  $('.date-picker').datepicker('update', '2014-01-01');
-  $('.date-picker-2').datepicker('update', '2014-12-31');
-
-  // Respond when the user updates the dates.
-  //$('.date-picker').on('changeDate', this.refreshImage.bind(this));
-  
-  // Respond when the user clicks the 'submit' button.
-  $('.dateSubmit').on('click', this.refreshImage.bind(this));
-};
-
-
-/**
- * Returns the currently selected time period as a parameter.
- * @return {Object} The current time period in a dictionary.
- */
-water.App.prototype.getTimeParams = function() {
-  return {time_start: $('.date-picker').val(), time_end: $('.date-picker-2').val()};
 };
 
 // ---------------------------------------------------------------------------------- //
@@ -257,20 +142,6 @@ water.App.prototype.expertSubmit = function() {
   $('.reset-and-submit-button .expert-submit').on('click', this.refreshImage.bind(this));
 };
 
-water.App.prototype.getExpertParams = function() {
-  return {
-    climatology: $(".climatology-input").is(':checked'),
-	month_index: parseInt($("#monthsControl").val()),
-	defringe: $(".defringe-input").is(':checked'),
-	pcnt_perm: parseFloat($('.percentile-input-perm').val()),
-	pcnt_temp: parseFloat($('.percentile-input-temp').val()),
-	water_thresh: parseFloat($('.water-threshold-input').val()),
-	veg_thresh: parseFloat($('.veg-threshold-input').val()),
-	hand_thresh: parseFloat($('.hand-threshold-input').val()),
-	cloud_thresh: parseFloat($('.cloud-threshold-input').val())
-  };
-};
-
 // ---------------------------------------------------------------------------------- //
 // Climatology slider
 // ---------------------------------------------------------------------------------- //
@@ -282,109 +153,6 @@ water.App.prototype.climatologySlider = function() {
 // ---------------------------------------------------------------------------------- //
 // Layer management
 // ---------------------------------------------------------------------------------- //
-
-// Get all relevant info for new layer
-water.App.prototype.getAllParams = function() {
-  var timeParams   = this.getTimeParams();
-  var expertParams = this.getExpertParams();
-  return $.extend(timeParams, expertParams);
-};
-
-// Updates the image based on the current control panel config.
-water.App.prototype.refreshImage = function() {
-  
-  var name = 'water';
-  //var name1 = 'water_temporary';
-  //var name2 = 'water_permanent';
-  
-  // obtain params
-  var params = this.getAllParams();
-  //console.log(params);  // for debugging/testing
-    
-  // check if map is already active (if so, return early)
-  // or if time period is too short (if so, return early and give warning)
-  // or, otherwise, update the map
-  if (this.currentLayer['time_start'] === params['time_start'] && 
-	  this.currentLayer['time_end'] === params['time_end'] && 
-	  this.currentLayer['climatology'] === params['climatology'] && 
-	  this.currentLayer['month_index'] === params['month_index'] && 
-	  this.currentLayer['defringe'] === params['defringe'] && 
-	  this.currentLayer['pcnt_perm'] === params['pcnt_perm'] && 
-	  this.currentLayer['pcnt_temp'] === params['pcnt_temp'] &&
-	  this.currentLayer['water_thresh'] === params['water_thresh'] && 
-	  this.currentLayer['veg_thresh'] === params['veg_thresh'] && 
-	  this.currentLayer['hand_thresh'] === params['hand_thresh'] && 
-	  this.currentLayer['cloud_thresh'] === params['cloud_thresh']) {
-	$('.warnings span').text('')
-	$('.warnings').hide();
-    return;
-  } else if (params['climatology'] == true && this.numberOfDays(params['time_start'], params['time_end']) < water.App.MINIMUM_TIME_PERIOD_CLIMATOLOGY) {
-	$('.warnings span').text('Warning! Time period for climatology is too short! Make sure it is at least 3 years (1095 days)!')
-	$('.warnings').show();
-    return;
-  } else if (this.numberOfDays(params['time_start'], params['time_end']) < water.App.MINIMUM_TIME_PERIOD_REGULAR) {
-	$('.warnings span').text('Warning! Time period is too short! Make sure it is at least 90 days!')
-	$('.warnings').show();
-    return;
-  } else {
-    
-    //remove warnings
-	$('.warnings span').text('')
-	$('.warnings').hide();
-	
-    // remove map layers
-	this.removeLayer(name);
-	//this.removeLayer(name1);
-	//this.removeLayer(name2);
-	
-	// add climatology slider if required
-	if (params['climatology'] == true) {
-	  $("#monthsControlSlider").show();
-	} else {
-	  $("#monthsControlSlider").hide();
-	};
-	
-    // query new map
-    $.ajax({
-      url: "/get_water_map",
-	  data: params,
-      dataType: "json",
-      success: function (data) {
-		water.instance.setWaterMap(data.eeMapId, data.eeToken, name)
-		//water.instance.setWaterMap(data.eeMapId_temporary, data.eeToken_temporary, name1)
-        //water.instance.setWaterMap(data.eeMapId_permanent, data.eeToken_permanent, name2)
-      },
-      error: function (data) {
-        console.log(data.responseText);
-      }
-    });
-	
-	// update current layer check
-	this.currentLayer = params;
-  }
-};
-
-// Push map with mapId and token obtained from EE Python
-water.App.prototype.setWaterMap = function(eeMapId, eeToken, name) {
-  //console.log(eeMapId)  // for debugging/testing
-  this.showLoadingAlert(name);
-  // obtain new layer
-  //var mapType = water.App.getEeMapType(eeMapId, eeToken, name);  // obsolete, using ee.MapLayerOverlay instead
-  var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
-  // remove old layer
-  this.removeLayer(name);
-  // add new layer
-  this.map.overlayMapTypes.push(mapType);
-  // handle layer loading alerts
-  mapType.addTileCallback((function(event) {
-    if (event.count === 0) {
-      this.removeLoadingAlert(name);
-    } else {
-	  this.showLoadingAlert(name);
-	}
-  }).bind(this));
-};
-
 /**
  * Removes the map layer(s) with the given name.
  * @param {string} name The name of the layer(s) to remove.
@@ -409,38 +177,6 @@ water.App.prototype.setLayerOpacity = function(name, value) {
     }
   }).bind(this));
 };
-
-// ---------------------------------------------------------------------------------- //
-// Alerts
-// ---------------------------------------------------------------------------------- //
-
-water.App.prototype.showLoadingAlert = function(name) {
-  if (name == 'water') {
-    $(".waterAlert").show();
-  } else if (name == 'AoI_fill') {
-    $(".aoiAlert").show();
-  } else if (name == 'water_permanent') {
-    $(".waterPermAlert").show();
-  } else if (name == 'water_temporary') {
-    $(".waterTempAlert").show();
-  } else {
-    return
-  }
-}
-
-water.App.prototype.removeLoadingAlert = function(name) {
-  if (name == 'water') {
-    $(".waterAlert").hide();
-  } else if (name == 'AoI_fill') {
-    $(".aoiAlert").hide();
-  } else if (name == 'water_permanent') {
-    $(".waterPermAlert").hide();
-  } else if (name == 'water_temporary') {
-    $(".waterTempAlert").hide();
-  } else {
-    return
-  }
-}
 
 // ---------------------------------------------------------------------------------- //
 // Export functionality
@@ -517,24 +253,3 @@ water.App.createDrawingManager = function(map) {
   drawingManager.setMap(map);
   return drawingManager;
 };
-
-/** @type {string} The Earth Engine API URL. */
-water.App.EE_URL = 'https://earthengine.googleapis.com';
-
-/** @type {number} The default zoom level for the map. */
-water.App.DEFAULT_ZOOM = 7;
-
-/** @type {number} The max allowed zoom level for the map. */
-water.App.MAX_ZOOM = 14;
-
-/** @type {Object} The default center of the map. */
-water.App.DEFAULT_CENTER = {lng: 104.0, lat: 12.5};
-
-/** @type {string} The default date format. */
-water.App.DATE_FORMAT = 'yyyy-mm-dd';
-
-/** @type {number} The minimum allowed time period in days. */
-water.App.MINIMUM_TIME_PERIOD_REGULAR = 90;
-
-/** @type {number} The minimum allowed time period in days when climatology is activated. */
-water.App.MINIMUM_TIME_PERIOD_CLIMATOLOGY = 1095;

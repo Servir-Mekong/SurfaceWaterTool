@@ -559,7 +559,6 @@
                           (if (and map-type (= (.-name map-type) layer-name))
                             (.removeAt map-types index))))))
 
-;; FIXME: Need to create the 9 advanced page components with proper ids
 ;; FIXME: Store params in an atom and skip the AJAX query if no parameters
 ;;        have changed since last time.
 (defn refresh-image []
@@ -585,7 +584,8 @@
                          "Make sure it is at least 3 months (90 days)!"))
 
           :otherwise
-          (do (if (true? climatology)
+          (do (remove-layer "water")
+              (if (true? climatology)
                 (show-control! :month-control)
                 (hide-control! :month-control))
               (let [map-url (str "/get_water_map?"
@@ -634,6 +634,7 @@
    :month (inc (.getMonth js-date))
    :date  (.getDate js-date)})
 
+;; FIXME: Set the min date to 1988-01-01 and the max date to today (js/Date.)
 (defn attach-datepicker! [atom element]
   (let [pattern   "yyyy'-'MM'-'dd"
         formatter (DateTimeFormat. pattern)
