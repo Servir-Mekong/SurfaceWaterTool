@@ -470,14 +470,14 @@ footer {
 }
 
 #water #ui #controls ul {
-    width:20rem;
+    width:70%;
     margin:0% auto;
     border:1px solid red;
 }
 
 #water #ui #controls ul li {
     list-style-type:none;
-    padding:7px 10px;
+    padding:2px;
     border:1px solid yellow;
 }
 
@@ -493,7 +493,6 @@ footer {
 }
 
 #water #ui #controls ul li input[type=radio] {
-    height:100%;
     vertical-align:middle;
 }
 
@@ -506,7 +505,6 @@ footer {
 }
 
 #water #ui #controls input[type=button] {
-    height:28px;
     margin:2% 0% 2% 31%;
     padding:5px;
     font-size:0.8rem;
@@ -545,16 +543,13 @@ footer {
 }
 
 #water #ui #controls #expert-controls ul {
-    height:15rem;
     width:100%;
     margin-left:0%;
 }
 
 #water #ui #controls #expert-controls ul li{
-    display:inline-block;
     list-style-type:none;
     padding:3px 0px;
-    width:100%;
 }
 
 #water #ui #controls #expert-controls ul li label {
@@ -566,7 +561,6 @@ footer {
 }
 
 #water #ui #controls #expert-controls ul li input[type=checkbox] {
-    height:100%;
     vertical-align:middle;
 }
 
@@ -579,7 +573,6 @@ footer {
 }
 
 #water #ui #controls #expert-controls input[type=button] {
-    height:28px;
     margin:5px 0px 10px 25%;
     font-size:0.8rem;
     color:#333;
