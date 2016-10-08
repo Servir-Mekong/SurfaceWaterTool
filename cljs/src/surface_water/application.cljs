@@ -81,59 +81,58 @@
    "12" "December"})
 
 (defn expert-controls []
-  [:div#expert-controls
-   [:ul
-    [:li
-     [:input#climatology-input {:type "checkbox" :value "None"
-                                :on-click #(if (visible-control? :month-control)
-                                             (hide-control! :month-control)
-                                             (show-control! :month-control))}]
-     [:label "Show months"]
-     [:div#month-control {:style (get-display-style :month-control)}
-      [:p (str "Month: " (month-id-to-name @month))]
-      [:input#month-slider {:type "range" :min "1" :max "12" :step "1"
-                            :default-value "1"
-                            :on-change #(reset! month
-                                                (.-value (.-currentTarget %)))}]]]
-    [:li
-     [:input#defringe-input {:type "checkbox" :value "None"}]
-     [:label "Defringe images"]]
-    [:li
-     [:input#percentile-input-perm
-      {:type "number" :min "0" :max "100" :default-value "40"}]
-     [:label "Permanent water percentile"]]
-    [:li
-     [:input#percentile-input-temp
-      {:type "number" :min "0" :max "100" :default-value "8"}]
-     [:label "Temporary water percentile"]]
-    [:li
-     [:input#water-threshold-input
-      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.3"}]
-     [:label "Water threshold"]]
-    [:li
-     [:input#veg-threshold-input
-      {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.35"}]
-     [:label "Vegetation threshold"]]
-    [:li
-     [:input#hand-threshold-input
-      {:type "number" :min "0" :max "9999" :step "1" :default-value "25"}]
-     [:label "HAND threshold"]]
-    [:li
-     [:input#cloud-threshold-input
-      {:type "number" :min "0" :max "1" :step "0.05" :default-value "0"}]
-     [:label "Cloud threshold"]]
-    [:li
-     [:input#expert-reset {:type "button" :value "Reset to Defaults"
-                           :on-click (fn [_]
-                                       (uncheck! "climatology-input")
-                                       (uncheck! "defringe-input")
-                                       (set-val! "percentile-input-perm" "40")
-                                       (set-val! "percentile-input-temp" "8")
-                                       (set-val! "water-threshold-input" "0.3")
-                                       (set-val! "veg-threshold-input" "0.35")
-                                       (set-val! "hand-threshold-input" "25")
-                                       (set-val! "cloud-threshold-input" "0")
-                                       (hide-control! :month-control))}]]]])
+  [:ul#expert-controls
+   [:li
+    [:input#climatology-input {:type "checkbox" :value "None"
+                               :on-click #(if (visible-control? :month-control)
+                                            (hide-control! :month-control)
+                                            (show-control! :month-control))}]
+    [:label "Show months"]
+    [:div#month-control {:style (get-display-style :month-control)}
+     [:p (str "Month: " (month-id-to-name @month))]
+     [:input#month-slider {:type "range" :min "1" :max "12" :step "1"
+                           :default-value "1"
+                           :on-change #(reset! month
+                                               (.-value (.-currentTarget %)))}]]]
+   [:li
+    [:input#defringe-input {:type "checkbox" :value "None"}]
+    [:label "Defringe images"]]
+   [:li
+    [:input#percentile-input-perm
+     {:type "number" :min "0" :max "100" :default-value "40"}]
+    [:label "Permanent water percentile"]]
+   [:li
+    [:input#percentile-input-temp
+     {:type "number" :min "0" :max "100" :default-value "8"}]
+    [:label "Temporary water percentile"]]
+   [:li
+    [:input#water-threshold-input
+     {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.3"}]
+    [:label "Water threshold"]]
+   [:li
+    [:input#veg-threshold-input
+     {:type "number" :min "-1" :max "1" :step "0.05" :default-value "0.35"}]
+    [:label "Vegetation threshold"]]
+   [:li
+    [:input#hand-threshold-input
+     {:type "number" :min "0" :max "9999" :step "1" :default-value "25"}]
+    [:label "HAND threshold"]]
+   [:li
+    [:input#cloud-threshold-input
+     {:type "number" :min "0" :max "1" :step "0.05" :default-value "0"}]
+    [:label "Cloud threshold"]]
+   [:li
+    [:input#expert-reset {:type "button" :value "Reset to Defaults"
+                          :on-click (fn [_]
+                                      (uncheck! "climatology-input")
+                                      (uncheck! "defringe-input")
+                                      (set-val! "percentile-input-perm" "40")
+                                      (set-val! "percentile-input-temp" "8")
+                                      (set-val! "water-threshold-input" "0.3")
+                                      (set-val! "veg-threshold-input" "0.35")
+                                      (set-val! "hand-threshold-input" "25")
+                                      (set-val! "cloud-threshold-input" "0")
+                                      (hide-control! :month-control))}]]])
 
 (defn map-controls []
   [:div#controls

@@ -472,13 +472,11 @@ footer {
 #water #ui #controls ul {
     width:70%;
     margin:0% auto;
-    border:1px solid red;
 }
 
 #water #ui #controls ul li {
     list-style-type:none;
     padding:2px;
-    border:1px solid yellow;
 }
 
 #water #ui #controls ul#date-range li {
@@ -488,7 +486,6 @@ footer {
 #water #ui #controls ul li input[type=text] {
     font-size:0.8rem;
     color:#333;
-    height:1rem;
     width:5rem;
 }
 
@@ -512,7 +509,8 @@ footer {
 }
 
 #water #ui #controls p#polygon {
-    margin-left:12%;
+    width:80%;
+    margin:0% auto;
     padding:5px;
     font-size:0.8rem;
     color:#333;
@@ -528,31 +526,25 @@ footer {
     color:#333;
     height:1rem;
     width:80%;
-    margin:0% 0% 10% 10%;
+    margin:0% 10%;
 }
 
 /************************************/
 /* Application Page Expert Controls */
 /************************************/
 
-#water #ui #controls #expert-controls {
+#water #ui #controls ul#expert-controls {
     position:relative;
-    height:15rem;
     width:80%;
-    margin:0 10%;
+    margin:0% 10%;
 }
 
-#water #ui #controls #expert-controls ul {
-    width:100%;
-    margin-left:0%;
-}
-
-#water #ui #controls #expert-controls ul li{
+#water #ui #controls ul#expert-controls li {
     list-style-type:none;
     padding:3px 0px;
 }
 
-#water #ui #controls #expert-controls ul li label {
+#water #ui #controls ul#expert-controls li label {
     height:100%;
     vertical-align:middle;
     font-size:0.8rem;
@@ -560,25 +552,24 @@ footer {
     margin-left:5px;
 }
 
-#water #ui #controls #expert-controls ul li input[type=checkbox] {
+#water #ui #controls ul#expert-controls li input[type=checkbox] {
     vertical-align:middle;
 }
 
-#water #ui #controls #expert-controls ul li input[type=number] {
+#water #ui #controls ul#expert-controls li input[type=number] {
     width:3rem;
-    height:100%;
     vertical-align:middle;
     font-size:0.8rem;
     color:#333;
 }
 
-#water #ui #controls #expert-controls input[type=button] {
-    margin:5px 0px 10px 25%;
+#water #ui #controls ul#expert-controls li input[type=button] {
+    margin:5px 0px 5px 20%;
     font-size:0.8rem;
     color:#333;
 }
 
-#water #ui #controls #expert-controls ul li #month-control {
+#water #ui #controls ul#expert-controls li #month-control {
     position:absolute;
     top:0px;
     right:0px;
@@ -588,13 +579,13 @@ footer {
     margin:5px 0px 0px 10px;
 }
 
-#water #ui #controls #expert-controls ul li #month-control p {
+#water #ui #controls ul#expert-controls li #month-control p {
     font-size:0.8rem;
     color:#333;
     text-align:center;
 }
 
-#water #ui #controls #expert-controls ul li #month-control input {
+#water #ui #controls ul#expert-controls li #month-control input {
     position:absolute;
     left:5;
     top:25px;
@@ -606,14 +597,14 @@ footer {
     cursor:pointer;
 }
 
-#water #ui #controls #expert-controls ul li #month-control input::-webkit-slider-thumb {
+#water #ui #controls ul#expert-controls li #month-control input::-webkit-slider-thumb {
     position:relative;
     z-index:1;
     outline:0;
     pointer-events:all;
 }
 
-#water #ui #controls #expert-controls ul li #month-control input::-moz-range-thumb {
+#water #ui #controls ul#expert-controls li #month-control input::-moz-range-thumb {
     position:relative;
     z-index:10;
     -moz-appearance:none;
@@ -621,14 +612,14 @@ footer {
     pointer-events:all;
 }
 
-#water #ui #controls #expert-controls ul li #month-control input::-moz-range-track {
+#water #ui #controls ul#expert-controls li #month-control input::-moz-range-track {
     position:relative;
     z-index:-1;
     background-color:rgba(100,100,100,1);
     border:0;
 }
 
-#water #ui #controls #expert-controls ul li #month-control input[type=range]::-moz-focus-outer {
+#water #ui #controls ul#expert-controls li #month-control input[type=range]::-moz-focus-outer {
     border:0;
 }
 
