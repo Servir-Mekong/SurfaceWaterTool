@@ -34,6 +34,9 @@
 ;; Map Controls
 ;;==============
 
+(defn msie? []
+  (exists? js/MSPointerEvent))
+
 (defonce polygon-selection-method (r/atom ""))
 
 (defonce polygon-selection (r/atom []))
@@ -90,10 +93,16 @@
     [:label "Show months"]
     [:div#month-control {:style (get-display-style :month-control)}
      [:p (str "Month: " (month-id-to-name @month))]
-     [:input#month-slider {:type "range" :min "1" :max "12" :step "1"
-                           :default-value "1"
-                           :on-change #(reset! month
-                                               (.-value (.-currentTarget %)))}]]]
+     [:input#month-slider (merge {:type "range" :min "1" :max "12" :step "1"
+                                  :default-value "1"}
+                                 (if (msie?)
+                                   {:style {:pointer-events "all"}
+                                    :on-click #(reset! month
+                                                       (.-value
+                                                        (.-currentTarget %)))}
+                                   {:on-change #(reset! month
+                                                        (.-value
+                                                         (.-currentTarget %)))}))]]]
    [:li
     [:input#defringe-input {:type "checkbox" :value "None"}]
     [:label "Defringe images"]]
@@ -254,9 +263,15 @@
        [:td "Temporary water"]]]]]
    [:div#opacity
     [:p (str "Opacity: " @opacity)]
-    [:input {:type "range" :min "0" :max "1" :step "0.1" :default-value "1"
-             :on-change #(update-opacity!
-                          (js/parseFloat (.-value (.-currentTarget %))))}]]
+    [:input (merge {:type "range" :min "0" :max "1" :step "0.1" :default-value "1"}
+                   (if (msie?)
+                     {:style {:pointer-events "all"}
+                      :on-click #(update-opacity!
+                                  (js/parseFloat
+                                   (.-value (.-currentTarget %))))}
+                     {:on-change #(update-opacity!
+                                   (js/parseFloat
+                                    (.-value (.-currentTarget %))))}))]]
    [:p#feedback [:a {:href "https://docs.google.com/a/sig-gis.com/forms/d/1pOgXeWJaDWg8NlC-ZalZJTzUdv9sVjNdXibZVPo4l4I/edit?ts=57ec6a52"
                      :target "_blank"}
                  "Give us Feedback!"]]
