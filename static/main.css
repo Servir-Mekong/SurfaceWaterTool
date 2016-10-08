@@ -354,36 +354,6 @@ footer {
     top:25px;
     width:145px;
     height:22px;
-    outline:none;
-    overflow:hidden;
-    pointer-events:none;
-    cursor:pointer;
-}
-
-#water #opacity input::-webkit-slider-thumb {
-    position:relative;
-    z-index:1;
-    outline:0;
-    pointer-events:all;
-}
-
-#water #opacity input::-moz-range-thumb {
-    position:relative;
-    z-index:10;
-    -moz-appearance:none;
-    width:9px;
-    pointer-events:all;
-}
-
-#water #opacity input::-moz-range-track {
-    position:relative;
-    z-index:-1;
-    background-color:rgba(100,100,100,1);
-    border:0;
-}
-
-#water #opacity input[type=range]::-moz-focus-outer {
-    border:0;
 }
 
 #water p#feedback {
@@ -591,36 +561,98 @@ footer {
     top:25px;
     width:145px;
     height:22px;
+}
+
+/*****************/
+/* Slider Widget */
+/*****************/
+
+input[type=range] {
     outline:none;
-    overflow:hidden;
     pointer-events:none;
-    cursor:pointer;
+    background:transparent;
+    -webkit-appearance:none;
 }
 
-#water #ui #controls ul#expert-controls li #month-control input::-webkit-slider-thumb {
-    position:relative;
-    z-index:1;
-    outline:0;
+input[type=range]::-webkit-slider-thumb {
     pointer-events:all;
-}
-
-#water #ui #controls ul#expert-controls li #month-control input::-moz-range-thumb {
     position:relative;
     z-index:10;
-    -moz-appearance:none;
-    width:9px;
+    background:#ffffff;
+    border:1px solid #000000;
+    border-radius:3px;
+    box-shadow:1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
+    cursor:pointer;
+    height:16px;
+    width:8px;
+    -webkit-appearance:none;
+    margin-top:-6px;
+}
+
+input[type=range]::-moz-range-thumb {
     pointer-events:all;
-}
-
-#water #ui #controls ul#expert-controls li #month-control input::-moz-range-track {
     position:relative;
-    z-index:-1;
-    background-color:rgba(100,100,100,1);
-    border:0;
+    z-index:10;
+    background:#ffffff;
+    border:1px solid #000000;
+    border-radius:3px;
+    box-shadow:1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
+    cursor:pointer;
+    height:16px;
+    width:8px;
 }
 
-#water #ui #controls ul#expert-controls li #month-control input[type=range]::-moz-focus-outer {
-    border:0;
+input[type=range]::-ms-thumb {
+    pointer-events:all;
+    position:relative;
+    z-index:10;
+    background:#ffffff;
+    border:1px solid #000000;
+    border-radius:3px;
+    box-shadow:1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
+    cursor:pointer;
+    height:16px;
+    width:8px;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+    height:6px;
+    width:95%;
+    border:1px solid #010101;
+    border-radius:1px;
+    box-shadow:1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
+    background:#ccc;
+}
+
+input[type=range]::-moz-range-track {
+    height:6px;
+    width:95%;
+    border:1px solid #010101;
+    border-radius:1px;
+    box-shadow:1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
+    background:#ccc;
+}
+
+input[type=range]::-moz-focus-outer {
+    border:0px;
+}
+
+input[type=range]::-ms-track {
+    height:6px;
+    width:95%;
+    border:1px solid #010101;
+    border-radius:1px;
+    box-shadow:1px 1px 1px #000000, 0px 0px 1px #0d0d0d;
+    background:#ccc;
+    color:transparent;
+}
+
+input[type=range]::-ms-fill-lower {
+    background:transparent;
+}
+
+input[type=range]::-ms-fill-upper {
+    background:transparent;
 }
 
 /******************/
