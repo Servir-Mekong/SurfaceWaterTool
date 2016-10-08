@@ -171,7 +171,7 @@ footer {
     position:absolute;
     top:0%;
     left:10%;
-    height:100%;
+    height:calc(100vh - 90px - 55px - 55px);
     width:76%;
     padding:2%;
     overflow:scroll;
@@ -213,11 +213,6 @@ footer {
     text-align:center;
 }
 
-#about #bottom-spacer {
-    height:100px;
-    width:100%;
-}
-
 /****************************************/
 /* Application Page Toplevel Components */
 /****************************************/
@@ -226,7 +221,7 @@ footer {
     position:absolute;
     top:0px;
     left:0px;
-    height:100%;
+    height:calc(100vh - 90px - 55px);
     width:100%;
 }
 
@@ -242,10 +237,10 @@ footer {
     position:absolute;
     top:0px;
     right:0px;
-    height:100%;
-    width:30%;
+    height:97%;
+    width:25rem;
     background-color:white;
-    padding:0.5rem;
+    padding:0.5%;
 }
 
 #water #settings-button {
@@ -264,10 +259,10 @@ footer {
 
 #water #general-info {
     position:absolute;
-    top:15%;
-    left:22.5%;
-    height:56%;
-    width:51%;
+    top:10%;
+    left:20%;
+    height:66%;
+    width:56%;
     padding:2%;
     border-radius:3px;
     background-color:white;
@@ -455,6 +450,7 @@ footer {
 
 #water #ui #controls {
     height:95%;
+    width:100%;
     overflow:scroll;
 }
 

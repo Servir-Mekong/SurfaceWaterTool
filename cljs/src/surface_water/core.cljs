@@ -203,8 +203,7 @@
     "Rennó, C. D., Nobre, A. D., Cuartas, L. A., Soares, J. V., Hodnett, M. G.,"
     " Tomasella, J., & Waterloo, M. J. (2008). HAND, a new terrain descriptor"
     " using SRTM-DEM: Mapping terra-firme rainforest environments in Amazonia."
-    " Remote Sensing of Environment, 112(9), 3469-3481."]
-   [:div#bottom-spacer]])
+    " Remote Sensing of Environment, 112(9), 3469-3481."]])
 
 (defn page-content []
   [:div#all-pages
