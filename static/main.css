@@ -268,6 +268,7 @@ footer {
     background-color:white;
     box-shadow:0px 0px 5px gray;
     z-index:100;
+    overflow:scroll;
 }
 
 #water #general-info h1 {
@@ -469,14 +470,19 @@ footer {
 }
 
 #water #ui #controls ul {
-    height:2rem;
-    margin-left:10%;
+    width:20rem;
+    margin:0% auto;
+    border:1px solid red;
 }
 
 #water #ui #controls ul li {
-    display:inline;
     list-style-type:none;
     padding:7px 10px;
+    border:1px solid yellow;
+}
+
+#water #ui #controls ul#date-range li {
+    display:inline;
 }
 
 #water #ui #controls ul li input[type=text] {
@@ -501,7 +507,8 @@ footer {
 
 #water #ui #controls input[type=button] {
     height:28px;
-    margin-left:33%;
+    margin:2% 0% 2% 31%;
+    padding:5px;
     font-size:0.8rem;
     color:#333;
 }
@@ -644,8 +651,18 @@ footer {
     height:8rem;
     border-radius:4rem;
     border-bottom:1rem solid purple;
+    animation:sweep 1s infinite linear;
     -moz-animation:sweep 1s infinite linear;
     -webkit-animation:sweep 1s infinite linear;
+}
+
+@keyframes sweep {
+    from {
+        transform:rotate(0deg);
+    }
+    to {
+        transform:rotate(360deg);
+    }
 }
 
 @-moz-keyframes sweep {

@@ -138,7 +138,7 @@
 (defn map-controls []
   [:div#controls
    [:h3 "Step 1: Select a time period for the calculation"]
-   [:ul
+   [:ul#date-range
     [:li [:input#start-date {:type "text"}]]
     [:li [:b "-"]]
     [:li [:input#end-date {:type "text"}]]]
