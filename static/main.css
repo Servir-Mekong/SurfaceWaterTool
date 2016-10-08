@@ -13,7 +13,7 @@ body {
     background-size:cover;
 }
 
-section, header, nav {
+section, header, nav, footer {
     display:block;
 }
 
@@ -34,7 +34,7 @@ header {
     width:100%;
 }
 
-#logos {
+.logos {
     position:relative;
     margin:0px;
     width:100%;
@@ -42,28 +42,28 @@ header {
     background-color:#fff;
 }
 
-#logos img#usaid {
+.logos img#usaid {
     position:absolute;
     top:5px;
     left:30px;
     width:150px;
 }
 
-#logos img#nasa {
+.logos img#nasa {
     position:absolute;
     top:0px;
     left:210px;
     width:60px;
 }
 
-#logos img#adpc {
+.logos img#adpc {
     position:absolute;
     top:9px;
     left:300px;
     width:80px;
 }
 
-#logos img#servir {
+.logos img#servir {
     position:absolute;
     top:12px;
     right:30px;
@@ -104,7 +104,7 @@ nav ul li.highlight {
     position:fixed;
     top:90px;
     left:0px;
-    height:calc(100vh - 90px);
+    height:calc(100vh - 90px - 55px);
     width:100%;
     background-color:rgba(255,255,255,0.2);
 }
@@ -122,6 +122,45 @@ nav ul li.highlight {
     position:relative;
     height:100%;
     width:100%;
+}
+
+/*****************/
+/* Footer Styles */
+/*****************/
+
+#pagefooter {
+    position:fixed;
+    bottom:0px;
+    left:0px;
+    height:55px;
+    width:100%;
+}
+
+footer {
+    height:100%;
+    width:100%;
+    border-top:1px solid #3a3a3a;
+}
+
+.logos img#sig {
+    position:absolute;
+    top:5px;
+    left:30px;
+    width:200px;
+}
+
+.logos img#sei {
+    position:absolute;
+    top:5px;
+    left:260px;
+    width:180px;
+}
+
+.logos img#deltares {
+    position:absolute;
+    top:5px;
+    left:440px;
+    width:100px;
 }
 
 /**************/
