@@ -378,13 +378,13 @@ footer {
 #water #legend table td #legend-permanent-water {
     height:20px;
     width:20px;
-    background-color:#756bb1;
+    background-color:#00008b;
 }
 
 #water #legend table td #legend-temporary-water {
     height:20px;
     width:20px;
-    background-color:#bcbddc;
+    background-color:#9999ff;
 }
 
 #water #legend-info {

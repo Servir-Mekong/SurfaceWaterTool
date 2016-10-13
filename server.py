@@ -311,8 +311,8 @@ def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, de
     <RasterSymbolizer>\
       <ColorMap extended="true" >\
         <ColorMapEntry color="#ffffff" quantity="0.0" label="-1"/>\
-        <ColorMapEntry color="#bcbddc" quantity="1.0" label="-1"/>\
-        <ColorMapEntry color="#756bb1" quantity="2.0" label="-1"/>\
+        <ColorMapEntry color="#9999ff" quantity="1.0" label="-1"/>\
+        <ColorMapEntry color="#00008b" quantity="2.0" label="-1"/>\
       </ColorMap>\
     </RasterSymbolizer>';
     #water_style_permanent = '\
