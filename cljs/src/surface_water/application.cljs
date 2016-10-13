@@ -215,7 +215,7 @@
                                         (hide-control! :ui)
                                         (show-control! :settings-button))}
       (str/unescapeEntities "&#171;")]
-     [:input#info-button {:type "button" :name "info-button" :value "i"
+     [:input.info-button {:type "button" :name "info-button" :value "i"
                           :on-click (fn []
                                       (if (visible-control? :info)
                                         (hide-control! :info)
@@ -249,6 +249,11 @@
                          (hide-control! :settings-button)
                          (show-control! :ui))}]]
    [:div#legend
+    [:input.info-button {:type "button" :name "legend-info-button" :value "i"
+                         :on-click (fn []
+                                     (if (visible-control? :legend-info)
+                                       (hide-control! :legend-info)
+                                       (show-control! :legend-info)))}]
     [:h2 "Legend"]
     [:table
      [:tbody
@@ -261,6 +266,13 @@
       [:tr
        [:td [:div#legend-temporary-water]]
        [:td "Temporary water"]]]]]
+   [:div#legend-info {:style (get-display-style :legend-info)}
+    [:table
+     [:tbody
+      [:tr
+       [:td "= water present for " [:b "most"] " of the time within the selected time period"]]
+      [:tr
+       [:td "= water present for " [:b "some"] " of the time within the selected time period"]]]]]
    [:div#opacity
     [:p (str "Opacity: " @opacity)]
     [:input (merge {:type "range" :min "0" :max "1" :step "0.1" :default-value "1"}

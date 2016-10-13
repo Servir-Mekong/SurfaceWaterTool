@@ -335,6 +335,26 @@ footer {
     border-top-right-radius:3px;
 }
 
+#water #legend .info-button {
+    display:inline;
+    float:right;
+    margin:2px 10px 0px 0px;
+    padding:0px 3px;
+    background-image:linear-gradient(rgb(255,255,255) 0px, rgb(224,224,224) 100%);
+    background-position:0% 0%;
+    background-repeat:repeat-x;
+    border:1.25px solid rgb(204,204,204);
+    border-radius:3px;
+    box-shadow:rgba(255,255,255,0.15) 0px 1px 0px 0px inset,
+               rgba(0,0,0,0.075) 0px 1px 1px 0px;
+    font-size:12px;
+    color:rgb(51,51,51);
+    font-weight:400;
+    line-height:16px;
+    text-shadow:rgb(255,255,255) 0px 1px 0px;
+    cursor:pointer;
+}
+
 #water #legend h2 {
     font-size:0.9rem;
     font-weight:bold;
@@ -365,6 +385,21 @@ footer {
     height:20px;
     width:20px;
     background-color:#bcbddc;
+}
+
+#water #legend-info {
+    position:absolute;
+    left:155px;
+    bottom:55px;
+    padding:5px 5px 5px 0px;
+    border-top-right-radius:3px;
+    border-bottom-right-radius:3px;
+    background-color:white;
+}
+
+#water #legend-info table td {
+    font-size:0.8rem;
+    padding:4px;
 }
 
 #water #opacity {
@@ -430,7 +465,7 @@ footer {
     cursor:pointer;
 }
 
-#water #ui header #info-button {
+#water #ui header .info-button {
     display:inline;
     float:right;
     margin:2px 10px 0px 0px;
