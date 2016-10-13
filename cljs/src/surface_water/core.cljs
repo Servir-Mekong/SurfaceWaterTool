@@ -23,10 +23,10 @@
 (defn page-header []
   [:header
    [:div.logos
-    [:img#usaid  {:src "/static/images/usaid.png"}]
-    [:img#nasa   {:src "/static/images/nasa.png"}]
-    [:img#adpc   {:src "/static/images/adpclogo.jpg"}]
-    [:img#servir {:src "/static/images/servir.png"}]]
+    [:img.usaid  {:src "/static/images/usaid.png"}]
+    [:img.nasa   {:src "/static/images/nasa.png"}]
+    [:img.adpc   {:src "/static/images/adpclogo.jpg"}]
+    [:img.servir {:src "/static/images/servir.png"}]]
    [:nav
     [:ul
      [:li (make-nav-link-style 0) "Home"]
@@ -86,20 +86,22 @@
     " cloud storage needed to calculate the HAND product were supported by"
     " a grant from Google."]
    [:div#about-logos
-    [:img {:src "/static/images/servir.png"}]
-    [:img {:src "/static/images/usaid.png"}]
-    [:img {:src "/static/images/nasa.png"}]
-    [:img {:src "/static/images/adpclogo.jpg"}]
-    [:img {:src "/static/images/googlelogo_color_272x92dp.png"}]
-    [:img {:src "/static/images/logosig.png"}]
-    [:img {:src "/static/images/winrocklogo.jpg"}]
-    [:img {:src "/static/images/mardlogo.jpg"}]
-    [:img {:src "/static/images/sei_tr.png"}]
-    [:img {:src "/static/images/deltares_tr.png"}]]
+    [:img.usaid    {:src "/static/images/usaid.png"}]
+    [:img.nasa     {:src "/static/images/nasa.png"}]
+    [:img.adpc     {:src "/static/images/adpclogo.jpg"}]
+    [:img.servir   {:src "/static/images/servir.png"}]
+    [:img.google   {:src "/static/images/googlelogo_color_272x92dp.png"}]
+    [:img.sig      {:src "/static/images/logosig.png"}]
+    [:img.sei      {:src "/static/images/sei_tr.png"}]
+    [:img.deltares {:src "/static/images/deltares_tr.png"}]
+    [:img.winrock  {:src "/static/images/winrocklogo.jpg"}]
+    [:img.mard     {:src "/static/images/mardlogo.jpg"}]]
    [:p#copyright
     "Copyright "
     (str/unescapeEntities "&copy;")
-    " Deltares and "
+    " "
+    [:a {:href "https://www.deltares.nl/en/" :target "_blank"} "Deltares"]
+    " and "
     [:a {:href "http://www.sig-gis.com" :target "_blank"} "SIG-GIS"]
     " 2016"]
    [:hr]

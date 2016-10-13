@@ -42,28 +42,28 @@ header {
     background-color:#fff;
 }
 
-.logos img#usaid {
+.logos img.usaid {
     position:absolute;
     top:5px;
     left:30px;
     width:150px;
 }
 
-.logos img#nasa {
+.logos img.nasa {
     position:absolute;
     top:0px;
     left:210px;
     width:60px;
 }
 
-.logos img#adpc {
+.logos img.adpc {
     position:absolute;
     top:9px;
     left:300px;
     width:80px;
 }
 
-.logos img#servir {
+.logos img.servir {
     position:absolute;
     top:12px;
     right:30px;
@@ -191,20 +191,55 @@ footer {
     padding:0.5rem;
 }
 
-#about figure img {
-    height:200px;
-    margin:auto;
-}
-
 #about #about-logos {
-    width:70%;
+    width:65%;
     margin:auto;
 }
 
 #about #about-logos img {
     display:inline;
-    height:35px;
     padding:0.5rem;
+}
+
+#about #about-logos img.usaid {
+    height:40px;
+}
+
+#about #about-logos img.nasa {
+    height:40px;
+}
+
+#about #about-logos img.adpc {
+    height:35px;
+}
+
+#about #about-logos img.servir {
+    height:25px;
+    margin-bottom:5px;
+}
+
+#about #about-logos img.google {
+    height:30px;
+}
+
+#about #about-logos img.sig {
+    height:35px;
+}
+
+#about #about-logos img.sei {
+    height:35px;
+}
+
+#about #about-logos img.deltares {
+    height:35px;
+}
+
+#about #about-logos img.winrock {
+    height:40px;
+}
+
+#about #about-logos img.mard {
+    height:40px;
 }
 
 #about p#copyright {
