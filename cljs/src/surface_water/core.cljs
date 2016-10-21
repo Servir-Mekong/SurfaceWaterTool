@@ -96,15 +96,6 @@
     [:img.deltares {:src "/static/images/deltares_tr.png"}]
     [:img.winrock  {:src "/static/images/winrocklogo.jpg"}]
     [:img.mard     {:src "/static/images/mardlogo.jpg"}]]
-   [:p#copyright
-    "Copyright "
-    (str/unescapeEntities "&copy;")
-    " "
-    [:a {:href "https://www.deltares.nl/en/" :target "_blank"} "Deltares"]
-    " and "
-    [:a {:href "http://www.sig-gis.com" :target "_blank"} "SIG-GIS"]
-    " 2016"]
-   [:hr]
    [:h1 "References"]
    [:p
     "Gennadii Donchyts, Jaap Schellekens, Hessel Winsemius, Elmar Eisemann and"
