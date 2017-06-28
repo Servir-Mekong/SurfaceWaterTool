@@ -32,12 +32,14 @@ water.App = function() {
   // The currently active layer
   //(used to prevent reloading when requested layer is the same).
   this.currentLayer = {};
+	this.aoiParams = {};
+	this.waterParams = {};
   
    // Initialize the UI components.
   this.initDatePickers();
   this.initRegionPicker();
+	this.toggleBoxes();
   this.opacitySliders();
-  this.expertSubmit();
   this.climatologySlider();
   this.initExport();
   
@@ -59,7 +61,9 @@ water.App.createMap = function() {
     zoom: water.App.DEFAULT_ZOOM,
 	maxZoom: water.App.MAX_ZOOM,
 	//disableDefaultUI: true,
-	streetViewControl: false
+	streetViewControl: false,
+	mapTypeControl: true,
+	mapTypeControlOptions: {position: google.maps.ControlPosition.RIGHT_BOTTOM}
   };
   var mapEl = $('.map').get(0);
   var map = new google.maps.Map(mapEl, mapOptions);
@@ -68,15 +72,16 @@ water.App.createMap = function() {
 
 // Load basic maps upon loading the main web page
 water.App.prototype.loadBasicMaps = function() {
-  var name1 = 'AoI_border';
-  var name2 = 'AoI_fill';
+  var name1 = 'AoI_fill';
+	var name2 = 'AoI_border';
   $.ajax({
     url: "/get_basic_maps",
     dataType: "json",
     success: function (data) {
-	  water.instance.showBasicMap(data.eeMapId_fill, data.eeToken_fill, name2);
+		water.instance.aoiParams = {'mapId': data.eeMapId_fill, 'token': data.eeToken_fill};
+	  water.instance.showBasicMap(data.eeMapId_fill, data.eeToken_fill, name1, 0);
 	  water.instance.setLayerOpacity('AoI_fill', parseFloat($("#aoiControl").val()));
-	  water.instance.showBasicMap(data.eeMapId_border, data.eeToken_border, name1);
+	  water.instance.showBasicMap(data.eeMapId_border, data.eeToken_border, name2, 1);
     },
     error: function (data) {
       console.log(data.responseText);
@@ -85,11 +90,12 @@ water.App.prototype.loadBasicMaps = function() {
 }
 
 // Push map with mapId and token obtained from EE Python
-water.App.prototype.showBasicMap = function(eeMapId, eeToken, name) {
+water.App.prototype.showBasicMap = function(eeMapId, eeToken, name, index) {
   this.showLoadingAlert(name);
   //var mapType = water.App.getEeMapType(eeMapId, eeToken, name);  // obsolete, using ee.MapLayerOverlay instead
   var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
-  this.map.overlayMapTypes.push(mapType);
+  //this.map.overlayMapTypes.push(mapType);        // old, just push to array, will always show latest layer on top
+	this.map.overlayMapTypes.setAt(index, mapType);  // new, use index to keep correct zIndex when adding/removing layers
   // handle layer loading alerts
   mapType.addTileCallback((function(event) {
     if (event.count === 0) {
@@ -125,14 +131,14 @@ water.App.prototype.initDatePickers = function() {
   });
 
   // Set default dates.
-  $('.date-picker').datepicker('update', '2014-01-01');
-  $('.date-picker-2').datepicker('update', '2014-12-31');
+  $('.date-picker').datepicker('update', '2016-01-01');
+  $('.date-picker-2').datepicker('update', '2016-12-31');
 
   // Respond when the user updates the dates.
   //$('.date-picker').on('changeDate', this.refreshImage.bind(this));
   
   // Respond when the user clicks the 'submit' button.
-  $('.dateSubmit').on('click', this.refreshImage.bind(this));
+  $('.submit').on('click', this.refreshImage.bind(this));
 };
 
 
@@ -145,117 +151,8 @@ water.App.prototype.getTimeParams = function() {
 };
 
 // ---------------------------------------------------------------------------------- //
-// Region selection
-// ---------------------------------------------------------------------------------- //
-
-// Initializes the region picker.
-water.App.prototype.initRegionPicker = function() {
-  // Respond when the user chooses to draw a polygon.
-  $('.region .draw').click(this.setDrawingModeEnabled.bind(this, true));
-
-  // Respond when the user draws a polygon on the map.
-  google.maps.event.addListener(
-      this.drawingManager, 'overlaycomplete',
-      (function(event) {
-        if (this.getDrawingModeEnabled()) {
-          this.handleNewPolygon(event.overlay);
-        } else {
-          event.overlay.setMap(null);
-        }
-      }).bind(this));
-
-  // Cancel drawing mode if the user presses escape.
-  $(document).keydown((function(event) {
-    if (event.which == 27) this.setDrawingModeEnabled(false);
-  }).bind(this));
-
-  // Respond when the user cancels polygon drawing.
-  $('.region .cancel').click(this.setDrawingModeEnabled.bind(this, false));
-
-  // Respond when the user clears the polygon.
-  $('.region .clear').click(this.clearPolygon.bind(this));
-};
-
-/**
- * Sets whether drawing on the map is enabled.
- * @param {boolean} enabled Whether drawing mode is enabled.
- */
-water.App.prototype.setDrawingModeEnabled = function(enabled) {
-  $('.region').toggleClass('drawing', enabled);
-  var mode = enabled ? google.maps.drawing.OverlayType.POLYGON : null;
-  this.drawingManager.setOptions({drawingMode: mode});
-};
-
-/**
- * Sets whether drawing on the map is enabled.
- * @return {boolean} Whether drawing mode is enabled.
- */
-water.App.prototype.getDrawingModeEnabled = function() {
-  return $('.region').hasClass('drawing');
-};
-
-// Clears the current polygon from the map and enables drawing.
-water.App.prototype.clearPolygon = function() {
-  this.currentPolygon.setMap(null);
-  $('.region').removeClass('selected');
-  $('.export').attr('disabled', true);
-};
-
-/**
- * Stores the current polygon drawn on the map and disables drawing.
- * @param {Object} opt_overlay The new polygon drawn on the map. If
- *     undefined, the default polygon is treated as the new polygon.
- */
-water.App.prototype.handleNewPolygon = function(opt_overlay) {
-  this.currentPolygon = opt_overlay;
-  $('.region').addClass('selected');
-  $('.export').attr('disabled', false);
-  this.setDrawingModeEnabled(false);
-};
-
-// ---------------------------------------------------------------------------------- //
-// Layer opacity control
-// ---------------------------------------------------------------------------------- //
-
-water.App.prototype.opacitySliders = function() {
-  $("#aoiControl").on("slide", function(slideEvt) {
-	water.instance.setLayerOpacity('AoI_fill', slideEvt.value);
-  });
-  $("#aoiControl").on("slideStop", function(slideEvt) {
-	water.instance.setLayerOpacity('AoI_fill', slideEvt.value);
-  });
-  // in case of split up permanent and temporary water layers:
-  /*
-  $("#waterPermControl").on("slide", function(slideEvt) {
-	water.instance.setLayerOpacity('water_permanent', slideEvt.value);
-  });
-  $("#waterPermControl").on("slideStop", function(slideEvt) {
-	water.instance.setLayerOpacity('water_permanent', slideEvt.value);
-  });
-  $("#waterTempControl").on("slide", function(slideEvt) {
-	water.instance.setLayerOpacity('water_temporary', slideEvt.value);
-  });
-  $("#waterTempControl").on("slideStop", function(slideEvt) {
-	water.instance.setLayerOpacity('water_temporary', slideEvt.value);
-  });
-  */
-  // in case of merged permanent and temporary water layers:
-  $("#waterControl").on("slide", function(slideEvt) {
-	water.instance.setLayerOpacity('water', slideEvt.value);
-  });
-  $("#waterControl").on("slideStop", function(slideEvt) {
-	water.instance.setLayerOpacity('water', slideEvt.value);
-  });
-}
-
-// ---------------------------------------------------------------------------------- //
 // Expert controls input
 // ---------------------------------------------------------------------------------- //
-
-water.App.prototype.expertSubmit = function() {
-  // Respond when the user clicks the 'submit' button.
-  $('.reset-and-submit-button .expert-submit').on('click', this.refreshImage.bind(this));
-};
 
 water.App.prototype.getExpertParams = function() {
   return {
@@ -267,7 +164,7 @@ water.App.prototype.getExpertParams = function() {
 	water_thresh: parseFloat($('.water-threshold-input').val()),
 	veg_thresh: parseFloat($('.veg-threshold-input').val()),
 	hand_thresh: parseFloat($('.hand-threshold-input').val()),
-	cloud_thresh: parseFloat($('.cloud-threshold-input').val())
+	cloud_thresh: parseInt($('.cloud-threshold-input').val())
   };
 };
 
@@ -299,7 +196,6 @@ water.App.prototype.refreshImage = function() {
   
   // obtain params
   var params = this.getAllParams();
-  //console.log(params);  // for debugging/testing
     
   // check if map is already active (if so, return early)
   // or if time period is too short (if so, return early and give warning)
@@ -344,20 +240,21 @@ water.App.prototype.refreshImage = function() {
 	  $("#monthsControlSlider").hide();
 	};
 	
-    // query new map
-    $.ajax({
-      url: "/get_water_map",
-	  data: params,
-      dataType: "json",
-      success: function (data) {
-		water.instance.setWaterMap(data.eeMapId, data.eeToken, name)
-		//water.instance.setWaterMap(data.eeMapId_temporary, data.eeToken_temporary, name1)
-        //water.instance.setWaterMap(data.eeMapId_permanent, data.eeToken_permanent, name2)
-      },
-      error: function (data) {
-        console.log(data.responseText);
-      }
-    });
+	// query new map
+	$.ajax({
+		url: "/get_water_map",
+		data: params,
+		dataType: "json",
+		success: function (data) {
+			water.instance.waterParams = {'mapId': data.eeMapId, 'token': data.eeToken};
+			water.instance.setWaterMap(data.eeMapId, data.eeToken, name, 2)
+			//water.instance.setWaterMap(data.eeMapId_temporary, data.eeToken_temporary, name1, 2)
+			//water.instance.setWaterMap(data.eeMapId_permanent, data.eeToken_permanent, name2, 3)
+		},
+		error: function (data) {
+			console.log(data.responseText);
+		}
+	});
 	
 	// update current layer check
 	this.currentLayer = params;
@@ -365,8 +262,7 @@ water.App.prototype.refreshImage = function() {
 };
 
 // Push map with mapId and token obtained from EE Python
-water.App.prototype.setWaterMap = function(eeMapId, eeToken, name) {
-  //console.log(eeMapId)  // for debugging/testing
+water.App.prototype.setWaterMap = function(eeMapId, eeToken, name, index) {
   this.showLoadingAlert(name);
   // obtain new layer
   //var mapType = water.App.getEeMapType(eeMapId, eeToken, name);  // obsolete, using ee.MapLayerOverlay instead
@@ -374,7 +270,8 @@ water.App.prototype.setWaterMap = function(eeMapId, eeToken, name) {
   // remove old layer
   this.removeLayer(name);
   // add new layer
-  this.map.overlayMapTypes.push(mapType);
+  //this.map.overlayMapTypes.push(mapType);        // old, just push to array, will always show latest layer on top
+	this.map.overlayMapTypes.setAt(index, mapType);  // new, use index to keep correct zIndex when adding/removing layers
   // handle layer loading alerts
   mapType.addTileCallback((function(event) {
     if (event.count === 0) {
@@ -392,23 +289,93 @@ water.App.prototype.setWaterMap = function(eeMapId, eeToken, name) {
 water.App.prototype.removeLayer = function(name) {
   this.map.overlayMapTypes.forEach((function(mapType, index) {
     if (mapType && mapType.name == name) {
-      this.map.overlayMapTypes.removeAt(index);
+      //this.map.overlayMapTypes.removeAt(index);   // old, hard removal
+			this.map.overlayMapTypes.setAt(index, null);  // new, instead set null at the same index (to keep length of array intact, used for adding/removing layers and keep their zIndex intact)
     }
   }).bind(this));
 };
 
 /**
  * Changes the opacity of the map layer(s) with the given name.
- * @param {string} name The name of the layer(s) to remove.
+ * @param {string} name The name of the layer(s) for which to change opacity.
+ * @param {float} value The value to use for opacity of the layer(s).
  */
 water.App.prototype.setLayerOpacity = function(name, value) {
   this.map.overlayMapTypes.forEach((function(mapType, index) {
     if (mapType && mapType.name == name) {
-	  var overlay = this.map.overlayMapTypes.getAt(index);
+			var overlay = this.map.overlayMapTypes.getAt(index);
       overlay.setOpacity(value);
     }
   }).bind(this));
 };
+
+/**
+ * Toggles map layer(s) on/off.
+ * @param {string} name The name of the layer(s) to toggle on/off.
+ * @param {boolean} toggle Whether to toggle the layer(s) on (true) or off (false).
+ */
+ water.App.prototype.toggleLayer = function(name, toggle) {
+	if (toggle) {
+		//console.log('layer should be toggled on now!');
+		if (name == 'water') {
+			this.setWaterMap(this.waterParams.mapId, this.waterParams.token, 'water', 2);
+		} else if (name == 'AoI_fill') {
+			this.showBasicMap(this.aoiParams.mapId, this.aoiParams.token, 'AoI_fill', 0);
+			water.instance.setLayerOpacity('AoI_fill', parseFloat($("#aoiControl").val()));
+		}
+	} else {
+		//console.log('layer should be toggled off now!');
+		this.removeLayer(name);
+	}
+}
+
+// ---------------------------------------------------------------------------------- //
+// Layer toggle control
+// ---------------------------------------------------------------------------------- //
+
+water.App.prototype.toggleBoxes = function() {
+	$('#checkbox-aoi').on("change", function() {
+		water.instance.toggleLayer('AoI_fill', this.checked);
+	});
+	$('#checkbox-water').on("change", function() {
+		water.instance.toggleLayer('water', this.checked);
+	});
+}
+
+// ---------------------------------------------------------------------------------- //
+// Layer opacity control
+// ---------------------------------------------------------------------------------- //
+
+water.App.prototype.opacitySliders = function() {
+  $("#aoiControl").on("slide", function(slideEvt) {
+		water.instance.setLayerOpacity('AoI_fill', slideEvt.value);
+  });
+  $("#aoiControl").on("slideStop", function(slideEvt) {
+		water.instance.setLayerOpacity('AoI_fill', slideEvt.value);
+  });
+  // in case of split up permanent and temporary water layers:
+  /*
+  $("#waterPermControl").on("slide", function(slideEvt) {
+		water.instance.setLayerOpacity('water_permanent', slideEvt.value);
+  });
+  $("#waterPermControl").on("slideStop", function(slideEvt) {
+		water.instance.setLayerOpacity('water_permanent', slideEvt.value);
+  });
+  $("#waterTempControl").on("slide", function(slideEvt) {
+		water.instance.setLayerOpacity('water_temporary', slideEvt.value);
+  });
+  $("#waterTempControl").on("slideStop", function(slideEvt) {
+		water.instance.setLayerOpacity('water_temporary', slideEvt.value);
+  });
+  */
+  // in case of merged permanent and temporary water layers:
+  $("#waterControl").on("slide", function(slideEvt) {
+		water.instance.setLayerOpacity('water', slideEvt.value);
+  });
+  $("#waterControl").on("slideStop", function(slideEvt) {
+		water.instance.setLayerOpacity('water', slideEvt.value);
+  });
+}
 
 // ---------------------------------------------------------------------------------- //
 // Alerts
@@ -443,24 +410,435 @@ water.App.prototype.removeLoadingAlert = function(name) {
 }
 
 // ---------------------------------------------------------------------------------- //
+// Region selection
+// ---------------------------------------------------------------------------------- //
+
+// Initializes the region picker.
+water.App.prototype.initRegionPicker = function() {
+	
+	// Respond when the user changes the selection
+	$("input[name='polygon-selection-method']").change(polygonSelectionMethod);
+	
+	// initialize keydown storage variable
+	var ctrl_key_is_down = false;
+	// initialize number of selected polygons storage variable
+	var nr_selected = 0;
+	
+	function polygonSelectionMethod() {
+		// clear warnings
+		$('.warnings span').text('');
+		$('.warnings').hide();
+		// reset Export button
+		$('.export').attr('disabled', true);
+		// reset keydown storage
+		ctrl_key_is_down = false;
+		// get the selected variable name
+		var selection  = $("input[name='polygon-selection-method']:checked").val();
+		// clear previously selected polygons
+		for (var i=0; i<nr_selected; i++) {
+			water.instance.removeLayer('selected_polygon');
+		}
+		// reset number of selected polygons
+		nr_selected = 0;
+		// reset clicked points
+		water.instance.points = [];
+		// carry out action based on selection
+		if (selection == "Tiles"){
+			// cancel drawing
+			$('.region .cancel').click();
+			// clear existing overlays
+			water.instance.removeLayer('adm_bounds');
+			$('.region .clear').click();
+			// show overlay on map
+			water.App.prototype.loadTilesMap();
+		} else if (selection == "Adm. bounds"){
+			// cancel drawing
+			$('.region .cancel').click();
+			// clear existing overlays
+			water.instance.removeLayer('tiles');
+			$('.region .clear').click();
+			// show overlay on map
+			water.App.prototype.loadAdmBoundsMap();
+		} else if (selection == "Draw polygon"){	
+			// clear existing overlays
+			water.instance.removeLayer('adm_bounds');
+			water.instance.removeLayer('tiles');
+			// setup drawing 
+			$('.region .draw').click();
+		}
+	}
+	
+	this.map.addListener('click', function(event) {
+		var selection = $("input[name='polygon-selection-method']:checked").val();
+		if (selection == 'Tiles' || selection == 'Adm. bounds') {
+			var coords = event.latLng;
+			var lat = coords.lat();
+			var lng = coords.lng();
+			var params = {lat: lat, lng: lng};
+			var name = 'selected_polygon';
+			if (ctrl_key_is_down) {
+				// check if current selection doesn't exceed allowed maximum
+				if (nr_selected < water.App.MAX_SELECTION) {
+					nr_selected += 1;
+				} else {
+					return;
+				}
+			} else {
+				for (var i=0; i<nr_selected; i++) {
+					water.instance.removeLayer(name);
+				}
+				nr_selected = 1;
+				water.instance.points = [];
+			}
+		}
+		if (selection == 'Tiles') {
+			$.ajax({
+				url: "/select_tile",
+				data: params,
+				dataType: "json",
+				success: function (data) {
+					water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
+					$('.export').attr('disabled', false);
+					//water.instance.point = params;
+					water.instance.points.push(params);
+				},
+				error: function (data) {
+					console.log(data.responseText);
+				}
+			});
+		} else if (selection == 'Adm. bounds') {
+			$('.warnings span').text('')
+			$('.warnings').hide();
+			$.ajax({
+				url: "/select_adm_bounds",
+				data: params,
+				dataType: "json",
+				success: function (data) {
+					water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
+					//console.log(data.size);
+					if (data.size > water.App.AREA_LIMIT_2) {
+						$('.export').attr('disabled', true);
+						$('.warnings span').text('The selected area is larger than ' + water.App.AREA_LIMIT_2 + ' km2. This exceeds the current limitations for downloading data. ' +
+																		 'Please use one of the other region selection options to download data for this area.')
+						$('.warnings').show();
+					} else if (data.size > water.App.AREA_LIMIT_1) {
+						$('.export').attr('disabled', false);
+						$('.warnings span').text('The selected area is larger than ' + water.App.AREA_LIMIT_1 + ' km2. This is near the current limitation for downloading data. '+ 
+																		 'Please be warned that the download might result in a corrupted zip file. You can give it a try or use  one of the other region selection options to download data for this area.')
+						$('.warnings').show();
+					} else {
+						$('.export').attr('disabled', false);
+					}
+					//water.instance.point = params;
+					water.instance.points.push(params);
+				},
+				error: function (data) {
+					console.log(data.responseText);
+				}
+			});
+		}
+	});
+	
+	// Respond when the user chooses to draw a polygon.
+  $('.region .draw').click(this.setDrawingModeEnabled.bind(this, true));
+	
+  // Respond when the user draws a polygon on the map.
+  google.maps.event.addListener(
+      this.drawingManager, 'overlaycomplete',
+      (function(event) {
+        if (this.getDrawingModeEnabled()) {
+          this.handleNewPolygon(event.overlay);
+        } else {
+          event.overlay.setMap(null);
+        }
+      }).bind(this));
+
+  // handle actions when user presses certain keys 
+  $(document).keydown((function(event) {
+		// Cancel region selection and related items if the user presses escape.
+    if (event.which == 27) {
+			// remove drawing mode
+			this.setDrawingModeEnabled(false);
+			// remove region selection
+			$("input[name='polygon-selection-method']:checked").attr('checked', false);
+			// clear map overlays
+			water.instance.removeLayer('adm_bounds');
+			water.instance.removeLayer('tiles');
+			for (var i=0; i<nr_selected; i++) {
+				water.instance.removeLayer('selected_polygon');
+			}
+			// clear any existing download links
+			$('#link1').removeAttr('href');
+			$('#link2').removeAttr('href');
+			$('#link3').removeAttr('href');
+			$('#link4').removeAttr('href');
+			$('#link_metadata').removeAttr('href');
+			$('#link_metadata').removeAttr('download');
+			// remove download link(s) message
+			$('#link1').css('display', 'none');
+			$('#link2').css('display', 'none');
+			$('#link3').css('display', 'none');
+			$('#link4').css('display', 'none');
+			$('#link_metadata').css('display', 'none');
+			// reset variables
+			water.instance.points = [];
+			nr_selected = 0;
+			// disable export button
+			$('.export').attr('disabled', true);
+			// hide export panel
+			$('.download_panel').css('display', 'none');
+		}
+		// Allow multiple selection if the user presses and holds down ctrl.  // WORK IN PROGRESS
+		if (event.which == 17) {
+			var selection = $("input[name='polygon-selection-method']:checked").val();
+			if (selection == 'Tiles' || selection == 'Adm. bounds') {
+				if (ctrl_key_is_down) {
+					return;
+				}
+				ctrl_key_is_down = true;
+			}
+		}
+		
+  }).bind(this));
+	// clear ctrl key event if key is released
+	$(document).keyup((function(event) {
+		if (event.which == 17) {
+			ctrl_key_is_down = false;
+		}
+	}).bind(this));
+
+  // Respond when the user cancels polygon drawing.
+  //$('.region .cancel').click(this.setDrawingModeEnabled.bind(this, false));  // original function
+	$('.region .cancel').click((function() {
+		this.setDrawingModeEnabled(false);
+		if ($("input[name='polygon-selection-method']:checked").val() == 'Draw polygon') {
+			$("input[name='polygon-selection-method']:checked").attr('checked', false);
+		}
+	}).bind(this));
+
+  // Respond when the user clears the polygon.
+  //$('.region .clear').click(this.clearPolygon.bind(this));  // original function
+	$('.region .clear').click((function() {
+		// try to clear polygon (won't work if no polygon was drawn, try/catch to make it work)
+		try {
+			this.clearPolygon();
+		} catch(err) {
+			//console.log('Trying to remove a drawn polygon from map, but results in error:')
+			//console.log(err);
+		}
+		if ($("input[name='polygon-selection-method']:checked").val() == 'Draw polygon') {
+			$("input[name='polygon-selection-method']:checked").attr('checked', false);
+		}
+		$('.warnings span').text('');
+		$('.warnings').hide();
+	}).bind(this));
+};
+
+/**
+ * Sets whether drawing on the map is enabled.
+ * @param {boolean} enabled Whether drawing mode is enabled.
+ */
+water.App.prototype.setDrawingModeEnabled = function(enabled) {
+  $('.region').toggleClass('drawing', enabled);
+  var mode = enabled ? google.maps.drawing.OverlayType.POLYGON : null;
+  this.drawingManager.setOptions({drawingMode: mode});
+};
+
+/**
+ * Sets whether drawing on the map is enabled.
+ * @return {boolean} Whether drawing mode is enabled.
+ */
+water.App.prototype.getDrawingModeEnabled = function() {
+  return $('.region').hasClass('drawing');
+};
+
+// Clears the current polygon from the map and enables drawing.
+water.App.prototype.clearPolygon = function() {
+  this.currentPolygon.setMap(null);
+  $('.region').removeClass('selected');
+  $('.export').attr('disabled', true);
+};
+
+/**
+ * Stores the current polygon drawn on the map and disables drawing.
+ * @param {Object} opt_overlay The new polygon drawn on the map. If
+ *     undefined, the default polygon is treated as the new polygon.
+ */
+water.App.prototype.handleNewPolygon = function(opt_overlay) {
+	var drawn_polygon_size = google.maps.geometry.spherical.computeArea(opt_overlay.getPath()) / 1e6;
+	//console.log(drawn_polygon_size);
+	if (drawn_polygon_size > water.App.AREA_LIMIT_2) {
+		$('.export').attr('disabled', true);
+		$('.warnings span').text('The drawn polygon is larger than ' + water.App.AREA_LIMIT_2 + ' km2. This exceeds the current limitations for downloading data. ' +
+														 'Please draw a smaller polygon or use one of the other region selection options to download data for this area.')
+		$('.warnings').show();
+	} else if (drawn_polygon_size > water.App.AREA_LIMIT_1) {
+		$('.export').attr('disabled', false);
+		$('.warnings span').text('The drawn polygon is larger than ' + water.App.AREA_LIMIT_1 + ' km2. This is near the current limitation for downloading data. ' + 
+														 'Please be warned that the download might result in a corrupted zip file. You can give it a try, or draw a smaller polygon, or ' +
+														 'use  one of the other region selection options to download data for this area.')
+		$('.warnings').show();
+	} else {
+		$('.export').attr('disabled', false);
+	}
+  this.currentPolygon = opt_overlay;
+  $('.region').addClass('selected');
+  this.setDrawingModeEnabled(false);
+};
+
+/**
+* Clear polygons from the map when changing region selection modes
+**/
+var clearMap = function(){
+	// remove all polygons 
+	this.map.data.forEach(function (feature) {
+	  this.map.data.remove(feature);
+	});
+}
+
+// Load administrative boundaries maps
+water.App.prototype.loadAdmBoundsMap = function() {
+  var name = 'adm_bounds';
+  $.ajax({
+    url: "/get_adm_bounds_map",
+    dataType: "json",
+    success: function (data) {
+			water.instance.showMap(data.eeMapId, data.eeToken, name, 3);
+    },
+    error: function (data) {
+      console.log(data.responseText);
+    }
+  });
+}
+
+// Load tiles maps
+water.App.prototype.loadTilesMap = function() {
+  var name = 'tiles';
+  $.ajax({
+    url: "/get_tiles_map",
+    dataType: "json",
+    success: function (data) {
+			water.instance.showMap(data.eeMapId, data.eeToken, name, 3);
+    },
+    error: function (data) {
+      console.log(data.responseText);
+    }
+  });
+}
+
+// Show map
+water.App.prototype.showMap = function(eeMapId, eeToken, name, index) {
+  var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
+  //this.map.overlayMapTypes.push(mapType);        // old, just push to array, will always show latest layer on top
+	this.map.overlayMapTypes.setAt(index, mapType);  // new, use index to keep correct zIndex when adding/removing layers
+};
+
+// ---------------------------------------------------------------------------------- //
 // Export functionality
 // ---------------------------------------------------------------------------------- //
 
-// -- PLACEHOLDER UNTIL EXPORT FUNCTIONALITY IS FINISHED --
 water.App.prototype.initExport = function() {
-  // Temporary click functionality, remove when export functionality is finished!!
-  var export_click_count = 0;
-  $('.export').click(function () {
-	if (export_click_count == 0) {
-	  $('.warnings span').text('Export functionality is not implemented yet! This will be activated in the future. Click the export button again to remove this message.');
-	  $('.warnings').show();
-	  export_click_count = 1;
-	} else {
-	  $('.warnings span').text('');
-	  $('.warnings').hide();
-	  export_click_count = 0;
-	}
-  });
+	$('.export').click(function () {
+		// show panel
+		$('.download_panel').css('display', 'block');
+		// show prep message
+		$('#download_prep').css('display', 'block');
+		// clear any existing download links
+		$('#link1').removeAttr('href');
+		$('#link2').removeAttr('href');
+		$('#link3').removeAttr('href');
+		$('#link4').removeAttr('href');
+		$('#link_metadata').removeAttr('href');
+		$('#link_metadata').removeAttr('download');
+		// remove download link(s) message
+		$('#link1').css('display', 'none');
+		$('#link2').css('display', 'none');
+		$('#link3').css('display', 'none');
+		$('#link4').css('display', 'none');
+		$('#link_metadata').css('display', 'none');
+		// get base parameters and export filename
+		var base_params = water.App.prototype.getAllParams();
+		var export_name = $("input[name='filename']").val();
+		if (export_name == "") {
+			export_name = 'SurfaceWaterTool_' + base_params.time_start + '_' + base_params.time_end;
+		}
+		// get download link(s)
+		var region_selection = $("input[name='polygon-selection-method']:checked").val();
+		if (region_selection == 'Draw polygon') {
+			var coords_array = water.instance.currentPolygon.latLngs.b[0].b;
+			var coords_list  = []
+			coords_array.forEach(function(coords) {
+				var lat = coords.lat();
+				var lng = coords.lng();
+				coords_list.push([lng,lat]);
+			});
+			var params = $.extend(base_params, {coords: JSON.stringify(coords_list)}, {export_name: export_name});
+			$.ajax({
+				url: "/export_drawn",
+				data: params,
+				dataType: "json",
+				success: function (data) {
+					// hide prep message
+					$('#download_prep').css('display', 'none');
+					// show result
+					//water.instance.showMap(data.eeMapId, data.eeToken, 'test', 4);
+					//console.log(data);
+					//window.location.replace(data);
+					$('#link1').css('display', 'block');
+					$('#link1').attr('href', data);
+				},
+				error: function (data) {
+					console.log(data.responseText);
+				}
+			});
+		} else {
+			// use asynchronous ajax calls to allow getting/showing multiple download links at once
+			var async_ajax_call_export_counter  = 0;
+			var async_ajax_call_export_function = function(params) {
+				$.ajax({
+					url: "/export_selected",
+					async: true,
+					data: params,
+					dataType: "json",
+					success: function (data) {
+						// hide prep message
+						$('#download_prep').css('display', 'none');
+						// show result
+						//water.instance.showMap(data.eeMapId, data.eeToken, 'test', 4);
+						//console.log(data);
+						//window.location.replace(data);
+						$('#link' + (async_ajax_call_export_counter+1)).css('display', 'block');
+						$('#link' + (async_ajax_call_export_counter+1)).attr('href', data);
+						async_ajax_call_export_counter++;
+						if (async_ajax_call_export_counter < water.instance.points.length) {
+							point  = water.instance.points[async_ajax_call_export_counter];
+							params = $.extend(base_params, point, {export_name: export_name});
+							async_ajax_call_export_function(params);
+						}
+					},
+					error: function (data) {
+						console.log(data.responseText);
+						async_ajax_call_export_counter++;
+						if (async_ajax_call_export_counter < water.instance.points.length) {
+							point  = water.instance.points[async_ajax_call_export_counter];
+							params = $.extend(base_params, point, {export_name: export_name});
+							async_ajax_call_export_function(params);
+						}
+					}
+				});
+			}
+			var point  = water.instance.points[0];
+			var params = $.extend(base_params, point, {export_name: export_name}, {region_selection: region_selection});
+			async_ajax_call_export_function(params);
+		}
+		// get metadata
+		var metadata_header = Object.keys(water.App.prototype.getAllParams()).join().toString();
+		var metadata_values = $.map(water.App.prototype.getAllParams(), function(x){return x}).join().toString();
+		var metadata_csv    = metadata_header + '\n' + metadata_values
+		$('#link_metadata').css('display', 'block');
+		$('#link_metadata').attr('download', export_name + '.csv');
+		$('#link_metadata').attr('href', encodeURI("data:text/csv;charset=utf-8" + ',' + metadata_csv));
+	});
 };
 
 // ---------------------------------------------------------------------------------- //
@@ -528,7 +906,7 @@ water.App.DEFAULT_ZOOM = 7;
 water.App.MAX_ZOOM = 14;
 
 /** @type {Object} The default center of the map. */
-water.App.DEFAULT_CENTER = {lng: 104.0, lat: 12.5};
+water.App.DEFAULT_CENTER = {lng: 102.0, lat: 12.5};
 
 /** @type {string} The default date format. */
 water.App.DATE_FORMAT = 'yyyy-mm-dd';
@@ -538,3 +916,12 @@ water.App.MINIMUM_TIME_PERIOD_REGULAR = 90;
 
 /** @type {number} The minimum allowed time period in days when climatology is activated. */
 water.App.MINIMUM_TIME_PERIOD_CLIMATOLOGY = 1095;
+
+/** @type {number} The max allowed selection of polygons for download/export. */
+water.App.MAX_SELECTION = 4;
+
+/** @type {number} Soft limit on download area size. */
+water.App.AREA_LIMIT_1 = 15000;
+
+/** @type {number} Hard limit on download area size. */
+water.App.AREA_LIMIT_2 = 20000;

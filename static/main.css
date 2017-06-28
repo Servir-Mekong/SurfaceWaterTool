@@ -31,7 +31,7 @@ isindex {
 
 .water .ui {
   position: absolute;
-  top: 70px;
+  top: 20px;
   left: 10px;
   width: 470px;
   z-index: 1;
@@ -101,7 +101,7 @@ isindex {
   box-shadow: 0px 0px 5px gray;
   overflow: auto;
   margin-bottom: 0;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: normal;
 }
 
@@ -116,7 +116,7 @@ isindex {
   background-color: white;
   box-shadow: 0px 0px 5px grey;
   text-align: center;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: normal;
   overflow: auto;
   z-index: 3;
@@ -147,7 +147,7 @@ isindex {
   background-color: white;
   box-shadow: 0px 0px 5px grey;
   text-align: center;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: normal;
   overflow: auto;
   z-index: 3;
@@ -203,8 +203,22 @@ isindex {
   background-color:#D3D3D3;
 }
 
+.water #checkbox-aoi {
+  margin-left: 61px;
+  width: 20px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.water #checkbox-water {
+  margin-left: 20px;
+  width: 20px;
+  height: 15px;
+  cursor: pointer;
+}
+
 .water #aoiControlSlider {
-  margin-left: 71px;
+  margin-left: 20px;
   width: 60px;
 }
 
@@ -250,7 +264,7 @@ isindex {
 
 /* Slider and Loading Alert for merged layer */
 .water #waterControlSlider {
-  margin-left: 30px;
+  margin-left: 20px;
   width: 60px;
 }
 
@@ -289,7 +303,27 @@ isindex {
 }
 
 .water .input-block.region {
-  height: 22px;
+  height: 28px;
+}
+
+.water .input-block.region ul {
+  display: inline-block;
+  list-style-type: none;
+  margin-left: -48px;
+}
+
+.water .input-block.region ul li{
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px;
+  vertical-align: middle;
+}
+
+.water .input-block.region ul li label {
+  font-size: 12px;
+  font-weight: normal;
+  vertical-align: middle;
+  margin-left: 5px;
 }
 
 .water .input-block-label {
@@ -317,7 +351,7 @@ isindex {
   margin-right: 10px;
 }
 
-.water .dateSubmit {
+.water .submit {
   margin-left: 10px;
 }
 
@@ -368,6 +402,31 @@ isindex {
 
 .water .region.selected .message-selected .clear {
   color: black;
+}
+
+.water .export-info-button {
+  margin-left: 5px;
+}
+
+.water .export-info {
+  display: none;
+}
+
+.water .export-info-shown {
+  display: inline;
+  position: absolute;
+  left: 480px;
+  padding: 15px;
+  margin-top: -5px;
+  width: 450px;
+  height: 260px;
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0px 0px 5px gray;
+  overflow: auto;
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: normal;
 }
 
 .water .expert-toggle {
@@ -453,12 +512,13 @@ isindex {
   border-radius: 2px;
   background-color: white;
   box-shadow: 0px 0px 5px gray;
+  font-size: 12px;
   overflow: auto;
   margin-bottom: 0;
   z-index: 2;
 }
 
-.water .reset-and-submit-button {
+.water .reset-button {
   margin-top: 10px;
   margin-left: 65px;
 }
@@ -467,8 +527,12 @@ isindex {
   margin-left: 3px;
 }
 
-.water .expert-submit {
-  margin-left: 20px;
+.water .attr-show-button {
+  display: none;
+  font-size: 20px;
+  transform: rotate(-90deg);
+  float: right;
+  cursor: pointer;
 }
 
 .water .attributions {
@@ -476,10 +540,19 @@ isindex {
   margin-top: 20px;
 }
 
+.water .attr-collapse-button {
+  display: inline;
+  font-size: 20px;
+  transform: rotate(90deg);
+  float: right;
+  margin-top: 20px;
+  cursor: pointer;
+}
+
 .water #monthsControlSlider {
   display: none;
   right: 15px;
-  bottom: 100px;
+  bottom: 150px;
   position: absolute;
 }
 
@@ -495,12 +568,41 @@ isindex {
   padding: 10px;
   box-shadow: 0px 0px 5px red;
   text-align: center;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: normal;
   font-style: italic;
   overflow: auto;
   margin-bottom: 0;
   z-index: 4;
+}
+
+.water .download_panel {
+  display: none;
+  position: absolute;
+  top: 45px;
+  right: 10px;
+  width: 250px;
+  overflow: auto;
+  padding: 5px;
+  background-color: white;
+  box-shadow: 0px 0px 5px gray;
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: normal;
+  font-style: italic;
+  z-index: 1;
+}
+
+.water #download_prep {
+  display: none;
+}
+
+.water #link1,
+.water #link2,
+.water #link3,
+.water #link4,
+.water #link_metadata {
+  display: none;
 }
 
 .water .water {
