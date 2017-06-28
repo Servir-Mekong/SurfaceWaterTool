@@ -4,7 +4,7 @@ A web application for the water detection algorithm of SERVIR-Mekong using Googl
 ![Screenshot](static/images/screenshot.png)
 
 This tool is still in development. The two most important additions will be:
-- Export data within drawn region to Google Drive
+- Update the Export functionality to allow exports to Google Drive
 - Demo to help users understand the application
 
 Dependencies are:
