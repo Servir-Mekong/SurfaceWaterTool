@@ -1,5 +1,5 @@
-application: surface-water
-version: 1
+application: surface-water-beta
+version: 2
 
 runtime: python27
 api_version: 1

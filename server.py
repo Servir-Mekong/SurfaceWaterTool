@@ -16,7 +16,6 @@ import socket
 
 from google.appengine.api import urlfetch
 
-
 # ------------------------------------------------------------------------------------ #
 # Initialization
 # ------------------------------------------------------------------------------------ #
@@ -45,7 +44,6 @@ class MainHandler(webapp2.RequestHandler):
     """A servlet to handle requests to load the main web page."""
 
     def get(self):
-        
         template = JINJA2_ENVIRONMENT.get_template('index.html')
         self.response.out.write(template.render())
 
@@ -92,10 +90,13 @@ class GetWaterMapHandler(webapp2.RequestHandler):
         water_thresh = self.request.params.get('water_thresh')
         ndvi_thresh  = self.request.params.get('veg_thresh')
         hand_thresh  = self.request.params.get('hand_thresh')
+        cloud_thresh = self.request.params.get('cloud_thresh')
         
         # calculate new map and obtain mapId/token
-        water   = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh)
-        mapid   = water.getMapId()
+        water        = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
+        water_styled = SurfaceWaterToolStyle(water)
+        
+        mapid   = water_styled.getMapId()
         content = {
             'eeMapId': mapid['mapid'],
             'eeToken': mapid['token']
@@ -114,9 +115,202 @@ class GetWaterMapHandler(webapp2.RequestHandler):
         self.response.out.write(json.dumps(content))
 
 
+class GetAdmBoundsMapHandler(webapp2.RequestHandler):
+    """A servlet to handle requests to load the administrative boundaries fusion table."""
+
+    def get(self):
+        #mapid = Adm_bounds.getMapId({'color':'lightgrey'})
+        mapid = ee.Image().byte().paint(Adm_bounds, 0, 2).getMapId()
+        content = {
+            'eeMapId': mapid['mapid'],
+            'eeToken': mapid['token']
+        }
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
+class GetTilesMapHandler(webapp2.RequestHandler):
+    """A servlet to handle requests to load the tiles fusion table."""
+
+    def get(self):
+        #mapid = Tiles.getMapId({'color':'lightgrey'})
+        mapid = ee.Image().byte().paint(Tiles, 0, 2).getMapId()
+        content = {
+            'eeMapId': mapid['mapid'],
+            'eeToken': mapid['token']
+        }
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
+class GetSelectedAdmBoundsHandler(webapp2.RequestHandler):
+    """A servlet to handle requests to select an administrative boundary from the fusion table."""
+
+    def get(self):
+        lat   = ee.Number(float(self.request.params.get('lat')))
+        lng   = ee.Number(float(self.request.params.get('lng')))
+        point = ee.Geometry.Point([lng, lat])
+        area  = ee.Feature(Adm_bounds.filterBounds(point).first())
+        size  = area.geometry().area().divide(1e6).getInfo()
+        mapid = area.getMapId({'color':'grey'})
+        content = {
+            'eeMapId': mapid['mapid'],
+            'eeToken': mapid['token'],
+            'size': size
+        }
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
+class GetSelectedTileHandler(webapp2.RequestHandler):
+    """A servlet to handle requests to select a tile from the fusion table."""
+
+    def get(self):
+        lat   = ee.Number(float(self.request.params.get('lat')))
+        lng   = ee.Number(float(self.request.params.get('lng')))
+        point = ee.Geometry.Point([lng, lat])
+        area  = ee.Feature(Tiles.filterBounds(point).first())
+        mapid = area.getMapId({'color':'grey'})
+        content = {
+            'eeMapId': mapid['mapid'],
+            'eeToken': mapid['token']
+        }
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
+class ExportDrawnHandler(webapp2.RequestHandler):
+    """A servlet to handle requests to download data using a drawn polygon."""
+
+    def get(self):
+        
+        # get time period values
+        time_start   = self.request.params.get('time_start')
+        time_end     = self.request.params.get('time_end')
+        
+        # get expert input values
+        climatology  = self.request.params.get('climatology')
+        month_index  = self.request.params.get('month_index')
+        defringe     = self.request.params.get('defringe')
+        pcnt_perm    = self.request.params.get('pcnt_perm')
+        pcnt_temp    = self.request.params.get('pcnt_temp')
+        water_thresh = self.request.params.get('water_thresh')
+        ndvi_thresh  = self.request.params.get('veg_thresh')
+        hand_thresh  = self.request.params.get('hand_thresh')
+        cloud_thresh = self.request.params.get('cloud_thresh')
+        
+        # obtain water map
+        water = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
+        
+        # get drawn polygon and convert to list of coords
+        coords_json = json.loads(self.request.params.get('coords'))
+        coords_list  = []
+        for items in coords_json:
+			coords_list.append([items[0],items[1]])
+        #content = coords_list
+        
+        polygon = ee.Geometry.Polygon(coords_list)
+        coords  = polygon.coordinates().getInfo()
+        #content = coords
+        
+        #test = ee.Feature(polygon).getMapId()
+        #content = {
+        #    'eeMapId': test['mapid'],
+        #    'eeToken': test['token']
+        #}
+        
+        # get filename
+        export_name = self.request.params.get('export_name')
+        
+        # get to-be-downloaded image
+        export_image = water
+        #export_image = water.clip(polygon).updateMask(water.clip(polygon))
+        
+        # get download URL
+        content = export_image.rename(['water']).getDownloadURL({
+            'name': export_name,
+            'scale': 30,
+            'crs': 'EPSG:4326',
+            'region': coords
+		});
+        
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
+class ExportSelectedHandler(webapp2.RequestHandler):
+    """A servlet to handle requests to download data using a selected polygon."""
+
+    def get(self):
+        
+        # get time period values
+        time_start   = self.request.params.get('time_start')
+        time_end     = self.request.params.get('time_end')
+        
+        # get expert input values
+        climatology  = self.request.params.get('climatology')
+        month_index  = self.request.params.get('month_index')
+        defringe     = self.request.params.get('defringe')
+        pcnt_perm    = self.request.params.get('pcnt_perm')
+        pcnt_temp    = self.request.params.get('pcnt_temp')
+        water_thresh = self.request.params.get('water_thresh')
+        ndvi_thresh  = self.request.params.get('veg_thresh')
+        hand_thresh  = self.request.params.get('hand_thresh')
+        cloud_thresh = self.request.params.get('cloud_thresh')
+        
+        # obtain water map
+        water = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
+        
+        # get selected polygon and convert to list of coords
+        lat     = ee.Number(float(self.request.params.get('lat')))
+        lng     = ee.Number(float(self.request.params.get('lng')))
+        point   = ee.Geometry.Point([lng, lat])
+        
+        region_selection = self.request.params.get('region_selection')
+        
+        if region_selection == 'Tiles':
+            polygon = ee.Feature(Tiles.filterBounds(point).first()).geometry()
+        else:
+            polygon = ee.Feature(Adm_bounds.filterBounds(point).first()).geometry()
+        
+        coords  = polygon.coordinates().getInfo()
+        
+        #content = coords
+        
+        #test = ee.Feature(polygon).getMapId()
+        #content = {
+        #    'eeMapId': test['mapid'],
+        #    'eeToken': test['token']
+        #}
+        
+        # get filename
+        export_name = self.request.params.get('export_name')
+        
+        # get to-be-downloaded image
+        export_image = water
+        #export_image = water.clip(polygon).updateMask(water.clip(polygon))
+        
+        # get download URL
+        content = export_image.rename(['water']).getDownloadURL({
+            'name': export_name,
+            'scale': 30,
+            'crs': 'EPSG:4326',
+            'region': coords
+		});
+        
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
 # Define webapp2 routing from URL paths to web request handlers. See:
 # http://webapp-improved.appspot.com/tutorials/quickstart.html
 app = webapp2.WSGIApplication([
+    ('/export_selected', ExportSelectedHandler),
+    ('/export_drawn', ExportDrawnHandler),
+    ('/select_adm_bounds', GetSelectedAdmBoundsHandler),
+    ('/select_tile', GetSelectedTileHandler),
+    ('/get_adm_bounds_map', GetAdmBoundsMapHandler),
+    ('/get_tiles_map', GetTilesMapHandler),
     ('/get_water_map', GetWaterMapHandler),
     ('/get_basic_maps', GetBasicMapsHandler),
     ('/', MainHandler)
@@ -127,11 +321,17 @@ app = webapp2.WSGIApplication([
 # ------------------------------------------------------------------------------------ #
 
 # Area of Interest
-CountriesLowerMekong_basin = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2hZl6o5-Ljw_Dglc4")
+AoI = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2hZl6o5-Ljw_Dglc4")
+
+# Region selection / download layers
+#Adm_bounds = ee.FeatureCollection("ft:1v8sEZW2eXQvpddyZshITeC9uPaAuvwFl5OQ8PLdX")  # created from raw data, merge of lvl 2 (Myanmar) with lvl 1 (others)
+Adm_bounds = ee.FeatureCollection("ft:1EoP3xf8FAI3ctTLSD7mqSmVR-ghuotnRR3eqtSKE")  # copy (june 2017) of polygons used in (javascript branch of) EcoDash tool
+#Adm_bounds = ee.FeatureCollection("ft:1y94brggqzFF7XTKphcV94TwP_zwc8cRcAD8WSJHb")   # copy (june 2017) of polygons used in (master branch of) EcoDash tool
+Tiles      = ee.FeatureCollection("ft:1MsfMsevkTAyPJswCXy-PFdmqBIE39Th8sn2yk1zu")
 
 # Height Above Nearest Drainage (HAND) map for Mekong region
 #HAND = ee.Image('users/gena/ServirMekong/SRTM_30_Asia_Mekong_hand')  # old/obsolete version, Mekong basin only (not complete countries)
-HAND = ee.Image('users/gena/GlobalHAND/30m/hand-5000').clip(CountriesLowerMekong_basin)  # global version, clipped to AoI
+HAND = ee.Image('users/gena/GlobalHAND/30m/hand-5000').clip(AoI)  # global version, clipped to AoI
 
 # assign large (positive!) HAND value to value found in strange horizontal lines (-99999), so it is masked unless user specifies a very large threshold
 HAND = HAND.where(HAND.lt(0), 1000)
@@ -219,7 +419,7 @@ def defringeLandsat(img):
     return img
 
 # water detection algorithm
-def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh):
+def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh):
     
     # create date range for image filtering
     date_range = [time_start, time_end]
@@ -243,10 +443,24 @@ def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, de
     STD_NAMES   = ['blue2', 'blue', 'green', 'red', 'nir', 'swir1', 'swir2']
     
     # Get Landsat image collection
-    images_l4 = filterImages(ee.ImageCollection('LANDSAT/LT4_L1T_TOA'), [LC457_BANDS, STD_NAMES], CountriesLowerMekong_basin, [date_range[0], date_range[1]])
-    images_l5 = filterImages(ee.ImageCollection('LANDSAT/LT5_L1T_TOA'), [LC457_BANDS, STD_NAMES], CountriesLowerMekong_basin, [date_range[0], date_range[1]])
-    images_l7 = filterImages(ee.ImageCollection('LANDSAT/LE7_L1T_TOA'), [LC457_BANDS, STD_NAMES], CountriesLowerMekong_basin, [date_range[0], date_range[1]])
-    images_l8 = filterImages(ee.ImageCollection('LANDSAT/LC8_L1T_TOA'), [LC8_BANDS, STD_NAMES], CountriesLowerMekong_basin, [date_range[0], date_range[1]])
+    if int(cloud_thresh) < 0:
+        images_l4 = filterImages(ee.ImageCollection('LANDSAT/LT4_L1T_TOA'), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+        images_l5 = filterImages(ee.ImageCollection('LANDSAT/LT5_L1T_TOA'), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+        images_l7 = filterImages(ee.ImageCollection('LANDSAT/LE7_L1T_TOA'), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+        images_l8 = filterImages(ee.ImageCollection('LANDSAT/LC8_L1T_TOA'), [LC8_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+    else:
+        # helper function: cloud busting
+        # (https://code.earthengine.google.com/63f075a9e212f6ed4770af44be18a4fe, Ian Housman and Carson Stam)
+        def bustClouds(img):
+            t = img
+            cs = ee.Algorithms.Landsat.simpleCloudScore(img).select('cloud')
+            out = img.mask(img.mask().And(cs.lt(ee.Number(int(cloud_thresh)))))
+            return out.copyProperties(t)
+        images_l4 = filterImages(ee.ImageCollection('LANDSAT/LT4_L1T_TOA').map(bustClouds), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+        images_l5 = filterImages(ee.ImageCollection('LANDSAT/LT5_L1T_TOA').map(bustClouds), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+        images_l7 = filterImages(ee.ImageCollection('LANDSAT/LE7_L1T_TOA').map(bustClouds), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+        images_l8 = filterImages(ee.ImageCollection('LANDSAT/LC8_L1T_TOA').map(bustClouds), [LC8_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+    
     if defringe == 'true':
         images_l5 = images_l5.map(defringeLandsat)
         images_l7 = images_l7.map(defringeLandsat)
@@ -292,43 +506,29 @@ def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, de
     #water_temporary_masked = water_temporary_masked.subtract(water_permanent_masked)    # for separate layers
 
     # single image with permanent and temporary water
-    #water_complete = water_permanent.add(water_temporary).clip(CountriesLowerMekong_basin)
-    water_complete = water_permanent_masked.add(water_temporary_masked).clip(CountriesLowerMekong_basin)
+    #water_complete = water_permanent.add(water_temporary).clip(AoI)
+    water_complete = water_permanent_masked.add(water_temporary_masked).clip(AoI)
     
-    # colour rendering
+    return water_complete.updateMask(water_complete)
+
+def SurfaceWaterToolStyle(map):
+
     water_style = '\
     <RasterSymbolizer>\
       <ColorMap extended="true" >\
         <ColorMapEntry color="#ffffff" quantity="0.0" label="-1"/>\
-        <ColorMapEntry color="#bcbddc" quantity="1.0" label="-1"/>\
-        <ColorMapEntry color="#756bb1" quantity="2.0" label="-1"/>\
+        <ColorMapEntry color="#9999ff" quantity="1.0" label="-1"/>\
+        <ColorMapEntry color="#00008b" quantity="2.0" label="-1"/>\
       </ColorMap>\
     </RasterSymbolizer>';
-    #water_style_permanent = '\
-    #<RasterSymbolizer>\
-    #  <ColorMap extended="true" >\
-    #    <ColorMapEntry color="#ffffff" quantity="0.0" label="-1"/>\
-    #    <ColorMapEntry color="#756bb1" quantity="1.0" label="-1"/>\
-    #  </ColorMap>\
-    #</RasterSymbolizer>';
-    #water_style_temporary = '\
-    #<RasterSymbolizer>\
-    #  <ColorMap extended="true" >\
-    #    <ColorMapEntry color="#ffffff" quantity="-1.0" label="-1"/>\
-    #    <ColorMapEntry color="#ffffff" quantity="0.0" label="-1"/>\
-    #    <ColorMapEntry color="#bcbddc" quantity="1.0" label="-1"/>\
-    #  </ColorMap>\
-    #</RasterSymbolizer>';
     
-    return water_complete.updateMask(water_complete).sldStyle(water_style)
-    #return {'permanent': water_permanent_masked.updateMask(water_permanent_masked).clip(CountriesLowerMekong_basin).sldStyle(water_style_permanent), 
-    #        'temporary': water_temporary_masked.updateMask(water_temporary_masked).clip(CountriesLowerMekong_basin).sldStyle(water_style_temporary)}
+    return map.sldStyle(water_style)
 
 # ------------------------------------------------------------------------------------ #
 # Additional functions
 # ------------------------------------------------------------------------------------ #
 
 def basicMaps():
-    AoI_border = ee.Image().byte().paint(CountriesLowerMekong_basin, 0, 2)
-    AoI_fill   = ee.Image().byte().paint(CountriesLowerMekong_basin, 1000)
+    AoI_border = ee.Image().byte().paint(AoI, 0, 3)
+    AoI_fill   = ee.Image().byte().paint(AoI, 1000)
     return {'aoi_border': AoI_border, 'aoi_fill': AoI_fill}
