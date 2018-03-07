@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Google Earth Engine python code for the SERVIR-Mekong Surface Water Tool"""
+"""Google Earth Engine python code for the SERVIR-Mekong Surface Water Mapping Tool"""
 
-# This script handles the loading of the web application and its timeout settings,
+# This script handles the loading of the web application and its time out settings,
 # as well as the complete Earth Engine code for all the calculations.
 
 import json
@@ -41,47 +41,42 @@ urlfetch.set_default_fetch_deadline(URL_FETCH_TIMEOUT)
 # ------------------------------------------------------------------------------------ #
 
 class MainHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to load the main web page."""
-
+    """Handles requests to load the main web page."""
     def get(self):
         template = JINJA2_ENVIRONMENT.get_template('index.html')
         self.response.out.write(template.render())
 
 
-class GetBasicMapsHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to load background maps upon loading the main web page."""
-    
+class GetBackgroundHandler(webapp2.RequestHandler):
+    """Handles requests to load the background map upon loading the main web page."""
     def get(self):
-        
-        basic_maps = basicMaps()
-        
-        AoI_border        = basic_maps['aoi_border']
-        AoI_fill          = basic_maps['aoi_fill']
-        
-        AoI_border_mapid  = AoI_border.getMapId()
-        AoI_fill_mapid    = AoI_fill.getMapId()
-        
+        AoI_mapid = ee.Image().byte().paint(AoI, 1000).getMapId()
         content = {
-            'eeMapId_border': AoI_border_mapid['mapid'],
-            'eeToken_border': AoI_border_mapid['token'],
-            'eeMapId_fill': AoI_fill_mapid['mapid'],
-            'eeToken_fill': AoI_fill_mapid['token']
+            'eeMapId': AoI_mapid['mapid'],
+            'eeToken': AoI_mapid['token']
         }
-        
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
+class GetDefaultHandler(webapp2.RequestHandler):
+    """Handles requests to load the default map upon loading the main web page."""
+    def get(self):
+        default = SurfaceWaterToolStyle(ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_default_2017')).getMapId()
+        content = {
+            'eeMapId': default['mapid'],
+            'eeToken': default['token']
+        }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
 
 
 class GetWaterMapHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to load the water map."""
-
+    """Handles requests to load the water map."""
     def get(self):
-    
-        # get time period values
+        # get input parameters
         time_start   = self.request.params.get('time_start')
         time_end     = self.request.params.get('time_end')
-        
-        # get expert input values
         climatology  = self.request.params.get('climatology')
         month_index  = self.request.params.get('month_index')
         defringe     = self.request.params.get('defringe')
@@ -91,33 +86,127 @@ class GetWaterMapHandler(webapp2.RequestHandler):
         ndvi_thresh  = self.request.params.get('veg_thresh')
         hand_thresh  = self.request.params.get('hand_thresh')
         cloud_thresh = self.request.params.get('cloud_thresh')
-        
         # calculate new map and obtain mapId/token
-        water        = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
-        water_styled = SurfaceWaterToolStyle(water)
-        
-        mapid   = water_styled.getMapId()
-        content = {
+        water        = SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
+        mapid        = SurfaceWaterToolStyle(water).getMapId()
+        content      = {
             'eeMapId': mapid['mapid'],
             'eeToken': mapid['token']
         }
-        #mapid_permanent_water = water['permanent'].getMapId()
-        #mapid_temporary_water   = water['temporary'].getMapId()
-        #content = {
-        #    'eeMapId_permanent': mapid_permanent_water['mapid'],
-        #    'eeToken_permanent': mapid_permanent_water['token'],
-        #    'eeMapId_temporary': mapid_temporary_water['mapid'],
-        #    'eeToken_temporary': mapid_temporary_water['token']
-        #}
-        
         # send content using json
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
 
 
-class GetAdmBoundsMapHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to load the administrative boundaries fusion table."""
+class GetExampleMapHandler(webapp2.RequestHandler):
+    """Handles requests to load an example map."""
+    def get(self):
+        # get clicked example id
+        example_id  = self.request.params.get('example_id')
+        # pre-calculated example maps
+        EXAMPLES = {
+            'example_1': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_delta'),
+            'example_2': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_reservoir'),
+            'example_3': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_floods'),
+            'example_4': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_river')
+        }
+        # get example map with matching id
+        example_map = ee.Image(EXAMPLES[example_id])
+        mapid       = SurfaceWaterToolStyle(example_map).getMapId()
+        content     = {
+            'eeMapId': mapid['mapid'],
+            'eeToken': mapid['token']
+        }
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
 
+
+class GetExampleMonthsHandler(webapp2.RequestHandler):
+    """Handles requests to obtain mapId and token for each monthly map."""
+    def get(self):
+        # get example map
+        example_map = ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_months')
+        # get content for each monthly image
+        mapid_1  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('1')))).getMapId()
+        mapid_2  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('2')))).getMapId()
+        mapid_3  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('3')))).getMapId()
+        mapid_4  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('4')))).getMapId()
+        mapid_5  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('5')))).getMapId()
+        mapid_6  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('6')))).getMapId()
+        mapid_7  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('7')))).getMapId()
+        mapid_8  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('8')))).getMapId()
+        mapid_9  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('9')))).getMapId()
+        mapid_10 = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('10')))).getMapId()
+        mapid_11 = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('11')))).getMapId()
+        mapid_12 = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('12')))).getMapId()
+        content_1 = {
+            'eeMapId': mapid_1['mapid'],
+            'eeToken': mapid_1['token']
+        }
+        content_2 = {
+            'eeMapId': mapid_2['mapid'],
+            'eeToken': mapid_2['token']
+        }
+        content_3 = {
+            'eeMapId': mapid_3['mapid'],
+            'eeToken': mapid_3['token']
+        }
+        content_4 = {
+            'eeMapId': mapid_4['mapid'],
+            'eeToken': mapid_4['token']
+        }
+        content_5 = {
+            'eeMapId': mapid_5['mapid'],
+            'eeToken': mapid_5['token']
+        }
+        content_6 = {
+            'eeMapId': mapid_6['mapid'],
+            'eeToken': mapid_6['token']
+        }
+        content_7 = {
+            'eeMapId': mapid_7['mapid'],
+            'eeToken': mapid_7['token']
+        }
+        content_8 = {
+            'eeMapId': mapid_8['mapid'],
+            'eeToken': mapid_8['token']
+        }
+        content_9 = {
+            'eeMapId': mapid_9['mapid'],
+            'eeToken': mapid_9['token']
+        }
+        content_10 = {
+            'eeMapId': mapid_10['mapid'],
+            'eeToken': mapid_10['token']
+        }
+        content_11 = {
+            'eeMapId': mapid_11['mapid'],
+            'eeToken': mapid_11['token']
+        }
+        content_12 = {
+            'eeMapId': mapid_12['mapid'],
+            'eeToken': mapid_12['token']
+        }
+        content = {
+            '1': content_1,
+            '2': content_2,
+            '3': content_3,
+            '4': content_4,
+            '5': content_5,
+            '6': content_6,
+            '7': content_7,
+            '8': content_8,
+            '9': content_9,
+            '10': content_10,
+            '11': content_11,
+            '12': content_12,
+        }
+        self.response.headers['Content-Type'] = 'application/json'
+        self.response.out.write(json.dumps(content))
+
+
+class GetAdmBoundsMapHandler(webapp2.RequestHandler):
+    """Handles requests to load the administrative boundaries fusion table."""
     def get(self):
         #mapid = Adm_bounds.getMapId({'color':'lightgrey'})
         mapid = ee.Image().byte().paint(Adm_bounds, 0, 2).getMapId()
@@ -130,8 +219,7 @@ class GetAdmBoundsMapHandler(webapp2.RequestHandler):
 
 
 class GetTilesMapHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to load the tiles fusion table."""
-
+    """Handles requests to load the tiles fusion table."""
     def get(self):
         #mapid = Tiles.getMapId({'color':'lightgrey'})
         mapid = ee.Image().byte().paint(Tiles, 0, 2).getMapId()
@@ -144,8 +232,7 @@ class GetTilesMapHandler(webapp2.RequestHandler):
 
 
 class GetSelectedAdmBoundsHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to select an administrative boundary from the fusion table."""
-
+    """Handles requests to select an administrative boundary from the fusion table."""
     def get(self):
         lat   = ee.Number(float(self.request.params.get('lat')))
         lng   = ee.Number(float(self.request.params.get('lng')))
@@ -163,8 +250,7 @@ class GetSelectedAdmBoundsHandler(webapp2.RequestHandler):
 
 
 class GetSelectedTileHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to select a tile from the fusion table."""
-
+    """Handles requests to select a tile from the fusion table."""
     def get(self):
         lat   = ee.Number(float(self.request.params.get('lat')))
         lng   = ee.Number(float(self.request.params.get('lng')))
@@ -180,15 +266,11 @@ class GetSelectedTileHandler(webapp2.RequestHandler):
 
 
 class ExportDrawnHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to download data using a drawn polygon."""
-
+    """Handles requests to download data using a drawn polygon."""
     def get(self):
-        
-        # get time period values
+        # get input parameters
         time_start   = self.request.params.get('time_start')
         time_end     = self.request.params.get('time_end')
-        
-        # get expert input values
         climatology  = self.request.params.get('climatology')
         month_index  = self.request.params.get('month_index')
         defringe     = self.request.params.get('defringe')
@@ -198,56 +280,44 @@ class ExportDrawnHandler(webapp2.RequestHandler):
         ndvi_thresh  = self.request.params.get('veg_thresh')
         hand_thresh  = self.request.params.get('hand_thresh')
         cloud_thresh = self.request.params.get('cloud_thresh')
-        
         # obtain water map
-        water = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
-        
+        water = SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
         # get drawn polygon and convert to list of coords
         coords_json = json.loads(self.request.params.get('coords'))
         coords_list  = []
         for items in coords_json:
 			coords_list.append([items[0],items[1]])
         #content = coords_list
-        
         polygon = ee.Geometry.Polygon(coords_list)
         coords  = polygon.coordinates().getInfo()
         #content = coords
-        
         #test = ee.Feature(polygon).getMapId()
         #content = {
         #    'eeMapId': test['mapid'],
         #    'eeToken': test['token']
         #}
-        
         # get filename
         export_name = self.request.params.get('export_name')
-        
         # get to-be-downloaded image
         export_image = water
         #export_image = water.clip(polygon).updateMask(water.clip(polygon))
-        
         # get download URL
         content = export_image.rename(['water']).getDownloadURL({
             'name': export_name,
             'scale': 30,
             'crs': 'EPSG:4326',
             'region': coords
-		});
-        
+		})
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
 
 
 class ExportSelectedHandler(webapp2.RequestHandler):
-    """A servlet to handle requests to download data using a selected polygon."""
-
+    """Handles requests to download data using a selected polygon."""
     def get(self):
-        
-        # get time period values
+        # get input parameters
         time_start   = self.request.params.get('time_start')
         time_end     = self.request.params.get('time_end')
-        
-        # get expert input values
         climatology  = self.request.params.get('climatology')
         month_index  = self.request.params.get('month_index')
         defringe     = self.request.params.get('defringe')
@@ -257,47 +327,37 @@ class ExportSelectedHandler(webapp2.RequestHandler):
         ndvi_thresh  = self.request.params.get('veg_thresh')
         hand_thresh  = self.request.params.get('hand_thresh')
         cloud_thresh = self.request.params.get('cloud_thresh')
-        
         # obtain water map
-        water = SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
-        
+        water = SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh)
         # get selected polygon and convert to list of coords
         lat     = ee.Number(float(self.request.params.get('lat')))
         lng     = ee.Number(float(self.request.params.get('lng')))
         point   = ee.Geometry.Point([lng, lat])
-        
+        # get region
         region_selection = self.request.params.get('region_selection')
-        
         if region_selection == 'Tiles':
             polygon = ee.Feature(Tiles.filterBounds(point).first()).geometry()
         else:
             polygon = ee.Feature(Adm_bounds.filterBounds(point).first()).geometry()
-        
         coords  = polygon.coordinates().getInfo()
-        
         #content = coords
-        
         #test = ee.Feature(polygon).getMapId()
         #content = {
         #    'eeMapId': test['mapid'],
         #    'eeToken': test['token']
         #}
-        
         # get filename
         export_name = self.request.params.get('export_name')
-        
         # get to-be-downloaded image
         export_image = water
         #export_image = water.clip(polygon).updateMask(water.clip(polygon))
-        
         # get download URL
         content = export_image.rename(['water']).getDownloadURL({
             'name': export_name,
             'scale': 30,
             'crs': 'EPSG:4326',
             'region': coords
-		});
-        
+		})
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
 
@@ -312,143 +372,76 @@ app = webapp2.WSGIApplication([
     ('/get_adm_bounds_map', GetAdmBoundsMapHandler),
     ('/get_tiles_map', GetTilesMapHandler),
     ('/get_water_map', GetWaterMapHandler),
-    ('/get_basic_maps', GetBasicMapsHandler),
+    ('/get_background', GetBackgroundHandler),
+    ('/get_default', GetDefaultHandler),
+    ('/get_example_map', GetExampleMapHandler),
+    ('/get_example_months', GetExampleMonthsHandler),
     ('/', MainHandler)
     ], debug=True)
 
 # ------------------------------------------------------------------------------------ #
-# Surface Water Tool algorithm
+# Surface Water Mapping Tool algorithm
 # ------------------------------------------------------------------------------------ #
 
-# Area of Interest
-AoI = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2hZl6o5-Ljw_Dglc4")
-
-# Region selection / download layers
-#Adm_bounds = ee.FeatureCollection("ft:1v8sEZW2eXQvpddyZshITeC9uPaAuvwFl5OQ8PLdX")  # created from raw data, merge of lvl 2 (Myanmar) with lvl 1 (others)
-Adm_bounds = ee.FeatureCollection("ft:1EoP3xf8FAI3ctTLSD7mqSmVR-ghuotnRR3eqtSKE")  # copy (june 2017) of polygons used in (javascript branch of) EcoDash tool
-#Adm_bounds = ee.FeatureCollection("ft:1y94brggqzFF7XTKphcV94TwP_zwc8cRcAD8WSJHb")   # copy (june 2017) of polygons used in (master branch of) EcoDash tool
+# Geometries
+AoI        = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2hZl6o5-Ljw_Dglc4")
+Adm_bounds = ee.FeatureCollection("ft:1EoP3xf8FAI3ctTLSD7mqSmVR-ghuotnRR3eqtSKE")
 Tiles      = ee.FeatureCollection("ft:1MsfMsevkTAyPJswCXy-PFdmqBIE39Th8sn2yk1zu")
 
-# Height Above Nearest Drainage (HAND) map for Mekong region
-#HAND = ee.Image('users/gena/ServirMekong/SRTM_30_Asia_Mekong_hand')  # old/obsolete version, Mekong basin only (not complete countries)
-HAND = ee.Image('users/gena/GlobalHAND/30m/hand-5000').clip(AoI)  # global version, clipped to AoI
+# Landsat band names
+LC457_BANDS = ['B1',    'B1',   'B2',    'B3',  'B4',  'B5',    'B7']
+LC8_BANDS   = ['B1',    'B2',   'B3',    'B4',  'B5',  'B6',    'B7']
+STD_NAMES   = ['blue2', 'blue', 'green', 'red', 'nir', 'swir1', 'swir2']
 
-# assign large (positive!) HAND value to value found in strange horizontal lines (-99999), so it is masked unless user specifies a very large threshold
-HAND = HAND.where(HAND.lt(0), 1000)
+def SurfaceWaterToolAlgorithm(images, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_mask):
 
-# helper function: filter images
-def filterImages (image_collection, bands, bounds, dates):
-    return image_collection.select(bands[0], bands[1]).filterBounds(bounds).filterDate(dates[0], ee.Date(dates[1]).advance(1, 'day'))
-    
-# helper function: merge image collections
-def mergeImages (image_collections):
-    image_collections_merged = ee.ImageCollection(image_collections[0])
-    for i in range(1, len(image_collections)):
-        image_collections_merged = ee.ImageCollection(image_collections_merged.merge(image_collections[i]))
-    return image_collections_merged
+    # calculate percentile images
+    prcnt_img_perm = images.reduce(ee.Reducer.percentile([float(pcnt_perm)])).rename(STD_NAMES)
+    prcnt_img_temp = images.reduce(ee.Reducer.percentile([float(pcnt_temp)])).rename(STD_NAMES)
 
-# helper function: defringe Landsat 5 and/or 7
-# Defringe algorithm credits:
-# Author:
-#
-# Bonnie Ruefenacht, PhD
-# Senior Specialist
-# RedCastle Resources, Inc.
-# Working onsite at: 
-# USDA Forest Service 
-# Remote Sensing Applications Center (RSAC) 
-# 2222 West 2300 South
-# Salt Lake City, UT 84119
-# Office: (801) 975-3828 
-# Mobile: (801) 694-9215
-# Email: bruefenacht@fs.fed.us
-# RSAC FS Intranet website: http://fsweb.rsac.fs.fed.us/
-# RSAC FS Internet website: http://www.fs.fed.us/eng/rsac/
-#
-# Purpose: Remove the fringes of landsat 5 and 7 scenes.
-#
-# Kernel for masking fringes found and L5 and L7 imagery
-k = ee.Kernel.fixed(41, 41, \
-[[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
-[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
-fringeCountThreshold = 279;  #Define number of non null observations for pixel to not be classified as a fringe
-def defringeLandsat(img):
-    m   = img.mask().reduce(ee.Reducer.min())
-    sum = m.reduceNeighborhood(ee.Reducer.sum(), k, 'kernel')
-    sum = sum.gte(fringeCountThreshold)
-    img = img.mask(img.mask().And(sum))
-    return img
+    # MNDWI
+    MNDWI_perm = prcnt_img_perm.normalizedDifference(['green', 'swir1'])
+    MNDWI_temp = prcnt_img_temp.normalizedDifference(['green', 'swir1'])
 
-# water detection algorithm
-def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh):
+    # water
+    water_perm = MNDWI_perm.gt(float(water_thresh))
+    water_temp = MNDWI_temp.gt(float(water_thresh))
     
-    # create date range for image filtering
-    date_range = [time_start, time_end]
+    # get NDVI masks
+    NDVI_perm_pcnt = prcnt_img_perm.normalizedDifference(['nir', 'red'])
+    NDVI_temp_pcnt = prcnt_img_temp.normalizedDifference(['nir', 'red'])
+    NDVI_mask_perm = NDVI_perm_pcnt.gt(float(ndvi_thresh))
+    NDVI_mask_temp = NDVI_temp_pcnt.gt(float(ndvi_thresh))
     
-    # percentiles
-    percentile_permanent   = float(pcnt_perm)
-    percentile_temporary   = float(pcnt_temp)
+    # combined NDVI and HAND masks
+    full_mask_perm = NDVI_mask_perm.add(hand_mask)
+    full_mask_temp = NDVI_mask_temp.add(hand_mask)
     
-    # MNDWI threshold (water detection)
-    water_index_threshold  = float(water_thresh)
+    # apply NDVI and HAND masks
+    water_perm_masked = water_perm.updateMask(full_mask_perm.Not())
+    water_temp_masked = water_temp.updateMask(full_mask_perm.Not())
     
-    # NDVI threshold (vegetation masking)
-    NDVI_threshold         = float(ndvi_thresh)
+    # single image with permanent and temporary water
+    water_complete = water_perm_masked.add(water_temp_masked).clip(AoI)
     
-    # HAND threshold (e.g. hill shade masking)
-    HAND_threshold         = float(hand_thresh)
+    #return water_complete.updateMask(water_complete)
+    return water_complete
+
+def SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh):
     
-    # Landsat band names
-    LC457_BANDS = ['B1',    'B1',   'B2',    'B3',  'B4',  'B5',    'B7']
-    LC8_BANDS   = ['B1',    'B2',   'B3',    'B4',  'B5',  'B6',    'B7']
-    STD_NAMES   = ['blue2', 'blue', 'green', 'red', 'nir', 'swir1', 'swir2']
+    # Height Above Nearest Drainage (HAND)
+    #HAND = ee.Image('users/gena/ServirMekong/SRTM_30_Asia_Mekong_hand')  # old/obsolete version, Mekong basin only (not complete countries)
+    HAND = ee.Image('users/gena/GlobalHAND/30m/hand-5000').clip(AoI)  # global version, clipped to AoI
+    HAND = HAND.where(HAND.lt(0), 1000)  # assign large value to strange horizontal lines (-99999), so it is masked unless user specifies a very large threshold
     
-    # Get Landsat image collection
-    if int(cloud_thresh) < 0:
-        images_l4 = filterImages(ee.ImageCollection('LANDSAT/LT4_L1T_TOA'), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
-        images_l5 = filterImages(ee.ImageCollection('LANDSAT/LT5_L1T_TOA'), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
-        images_l7 = filterImages(ee.ImageCollection('LANDSAT/LE7_L1T_TOA'), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
-        images_l8 = filterImages(ee.ImageCollection('LANDSAT/LC8_L1T_TOA'), [LC8_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
-    else:
+    # filter Landsat collections on bounds and dates
+    L4 = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
+    L5 = ee.ImageCollection('LANDSAT/LT05/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
+    L7 = ee.ImageCollection('LANDSAT/LE07/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
+    L8 = ee.ImageCollection('LANDSAT/LC08/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
+    
+    # apply cloud masking
+    if int(cloud_thresh) >= 0:
         # helper function: cloud busting
         # (https://code.earthengine.google.com/63f075a9e212f6ed4770af44be18a4fe, Ian Housman and Carson Stam)
         def bustClouds(img):
@@ -456,63 +449,89 @@ def SurfaceWaterToolAlgorithm(time_start, time_end, climatology, month_index, de
             cs = ee.Algorithms.Landsat.simpleCloudScore(img).select('cloud')
             out = img.mask(img.mask().And(cs.lt(ee.Number(int(cloud_thresh)))))
             return out.copyProperties(t)
-        images_l4 = filterImages(ee.ImageCollection('LANDSAT/LT4_L1T_TOA').map(bustClouds), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
-        images_l5 = filterImages(ee.ImageCollection('LANDSAT/LT5_L1T_TOA').map(bustClouds), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
-        images_l7 = filterImages(ee.ImageCollection('LANDSAT/LE7_L1T_TOA').map(bustClouds), [LC457_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
-        images_l8 = filterImages(ee.ImageCollection('LANDSAT/LC8_L1T_TOA').map(bustClouds), [LC8_BANDS, STD_NAMES], AoI, [date_range[0], date_range[1]])
+        # apply cloud busting function
+        L4 = L4.map(bustClouds)
+        L5 = L5.map(bustClouds)
+        L7 = L7.map(bustClouds)
+        L8 = L8.map(bustClouds)
     
+    # select bands and rename
+    L4 = L4.select(LC457_BANDS, STD_NAMES)
+    L5 = L5.select(LC457_BANDS, STD_NAMES)
+    L7 = L7.select(LC457_BANDS, STD_NAMES)
+    L8 = L8.select(LC8_BANDS, STD_NAMES)
+    
+    # apply defringing
     if defringe == 'true':
-        images_l5 = images_l5.map(defringeLandsat)
-        images_l7 = images_l7.map(defringeLandsat)
+        # helper function: defringe Landsat 5 and/or 7
+        # (https://code.earthengine.google.com/63f075a9e212f6ed4770af44be18a4fe, Bonnie Ruefenacht)
+        k = ee.Kernel.fixed(41, 41, \
+        [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], \
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
+        fringeCountThreshold = 279  # define number of non null observations for pixel to not be classified as a fringe
+        def defringeLandsat(img):
+            m   = img.mask().reduce(ee.Reducer.min())
+            sum = m.reduceNeighborhood(ee.Reducer.sum(), k, 'kernel')
+            sum = sum.gte(fringeCountThreshold)
+            img = img.mask(img.mask().And(sum))
+            return img
+        L5 = L5.map(defringeLandsat)
+        L7 = L7.map(defringeLandsat)
     
-    images = mergeImages([images_l4, images_l5, images_l7, images_l8]);
+    # merge collections
+    images = ee.ImageCollection(L4.merge(L5).merge(L7).merge(L8))
     
+    # filter on selected month
     if climatology == 'true':
         images = images.filter(ee.Filter.calendarRange(int(month_index), int(month_index), 'month'))
-        
-    # calculate percentile images
-    prcnt_img_permanent = images.reduce(ee.Reducer.percentile([percentile_permanent])).rename(STD_NAMES)
-    prcnt_img_temporary = images.reduce(ee.Reducer.percentile([percentile_temporary])).rename(STD_NAMES)
-
-    # MNDWI
-    MNDWI_permanent = prcnt_img_permanent.normalizedDifference(['green', 'swir1'])
-    MNDWI_temporary = prcnt_img_temporary.normalizedDifference(['green', 'swir1'])
-
-    # water
-    water_permanent = MNDWI_permanent.gt(water_index_threshold)
-    water_temporary = MNDWI_temporary.gt(water_index_threshold)
-    
-    # get NDVI masks
-    NDVI_permanent_pcnt = prcnt_img_permanent.normalizedDifference(['nir', 'red'])
-    NDVI_temporary_pcnt = prcnt_img_temporary.normalizedDifference(['nir', 'red'])
-    NDVI_mask_permanent = NDVI_permanent_pcnt.gt(NDVI_threshold)
-    NDVI_mask_temporary = NDVI_temporary_pcnt.gt(NDVI_threshold)
     
     # get HAND mask
-    HAND_mask           = HAND.gt(HAND_threshold)
+    HAND_mask = HAND.gt(float(hand_thresh))
     
-    # combined NDVI and HAND masks
-    NDVI_and_HAND_mask_permanent = NDVI_mask_permanent.add(HAND_mask)
-    NDVI_and_HAND_mask_temporary = NDVI_mask_temporary.add(HAND_mask)
+    water = SurfaceWaterToolAlgorithm(images, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, HAND_mask)
     
-    # apply NDVI and HAND masks
-    water_permanent_NDVImasked = water_permanent.eq(1).And(NDVI_mask_permanent.eq(0))
-    water_permanent_HANDmasked = water_permanent.eq(1).And(HAND_mask.eq(0))
-    water_permanent_masked     = water_permanent.eq(1).And(NDVI_and_HAND_mask_permanent.eq(0))
-    
-    water_temporary_NDVImasked     = water_temporary.eq(1).And(NDVI_mask_temporary.eq(0))
-    water_temporary_HANDmasked     = water_temporary.eq(1).And(HAND_mask.eq(0))
-    water_temporary_masked         = water_temporary.eq(1).And(NDVI_and_HAND_mask_temporary.eq(0))
-    #water_temporary_masked = water_temporary_masked.subtract(water_permanent_masked)    # for separate layers
-
-    # single image with permanent and temporary water
-    #water_complete = water_permanent.add(water_temporary).clip(AoI)
-    water_complete = water_permanent_masked.add(water_temporary_masked).clip(AoI)
-    
-    return water_complete.updateMask(water_complete)
+    return water.updateMask(water)
 
 def SurfaceWaterToolStyle(map):
-
     water_style = '\
     <RasterSymbolizer>\
       <ColorMap extended="true" >\
@@ -520,15 +539,5 @@ def SurfaceWaterToolStyle(map):
         <ColorMapEntry color="#9999ff" quantity="1.0" label="-1"/>\
         <ColorMapEntry color="#00008b" quantity="2.0" label="-1"/>\
       </ColorMap>\
-    </RasterSymbolizer>';
-    
+    </RasterSymbolizer>'
     return map.sldStyle(water_style)
-
-# ------------------------------------------------------------------------------------ #
-# Additional functions
-# ------------------------------------------------------------------------------------ #
-
-def basicMaps():
-    AoI_border = ee.Image().byte().paint(AoI, 0, 3)
-    AoI_fill   = ee.Image().byte().paint(AoI, 1000)
-    return {'aoi_border': AoI_border, 'aoi_fill': AoI_fill}
