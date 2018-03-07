@@ -1,3 +1,16 @@
+/********************/
+/* Universal Styles */
+/********************/
+
+body {
+  height:100vh;
+  background-image:url(../static/images/shutterstock_river.jpg);
+  -webkit-background-size:cover;
+  -moz-background-size:cover;
+  -o-background-size:cover;
+  background-size:cover;
+}
+
 html,
 body,
 .water,
@@ -19,21 +32,269 @@ isindex {
   font-size: 14px;
 }
 
-.water .banner {
-  margin: 10px;
-  right:0;
-  background-color:none;
-  width:80%;
-  height:28px;
-  position: absolute;
-  z-index: 1;
+section, header, nav, footer {
+    display:block;
 }
+
+/*****************/
+/* Header Styles */
+/*****************/
+
+#pageheader {
+  position:fixed;
+  top:0px;
+  left:0px;
+  height:90px;
+  width:100%;
+}
+
+header {
+  height:100%;
+  width:100%;
+}
+
+#tool-title {
+  font-size: 28px;
+}
+
+.logos {
+  position:relative;
+  margin:0px;
+  width:100%;
+  height:55px;
+  background-color:#fff;
+}
+
+.logos img#usaid {
+  position:absolute;
+  top:5px;
+  left:30px;
+  width:150px;
+}
+
+.logos img#nasa {
+  position:absolute;
+  top:0px;
+  left:210px;
+  width:60px;
+}
+
+.logos img#adpc {
+  position:absolute;
+  top:9px;
+  left:300px;
+  width:80px;
+}
+
+.logos img#servir {
+  position:absolute;
+  top:12px;
+  right:30px;
+  width:250px;
+}
+
+nav {
+  position:relative;
+  margin:0px;
+  width:100%;
+  height:35px;
+  background-color:#3a3a3a;
+  color:#eee;
+}
+
+nav ul {
+  position:absolute;
+  top:0px;
+  margin-top:7px;
+}
+
+nav ul li {
+  display:inline;
+  list-style-type:none;
+  padding:2px;
+  cursor:pointer;
+}
+
+nav ul li #homebutton,
+nav ul li #examplesbutton,
+nav ul li #aboutbutton {
+  font-family:Roboto;
+  font-size:16px;
+  background-color: #3a3a3a;
+  border: none;
+}
+
+nav ul li #feedbacklink {
+  margin-left: 10px;
+  font-family:Roboto;
+  font-size:16px;
+  background-color: #3a3a3a;
+  color: #eee;
+}
+
+/***********************/
+/* Page Content Styles */
+/***********************/
+
+#pagecontent {
+  position:fixed;
+  top:90px;
+  left:0px;
+  height:calc(100vh - 90px - 55px);
+  width:100%;
+  background-color:rgba(255,255,255,0.2);
+}
+
+#pagecontent a {
+  color:#444;
+  text-decoration:none;
+}
+
+#pagecontent a:hover {
+  text-shadow:0px 0px 4px #333;
+}
+
+#pagecontent #all-pages {
+  position:relative;
+  height:100%;
+  width:100%;
+}
+
+/*****************/
+/* Footer Styles */
+/*****************/
+
+#pagefooter {
+  position:fixed;
+  bottom:0px;
+  left:0px;
+  height:55px;
+  width:100%;
+}
+
+footer {
+  height:100%;
+  width:100%;
+  border-top:1px solid #3a3a3a;
+}
+
+.logos img#deltares {
+  position:absolute;
+  top:7px;
+  left:0px;
+  width:100px;
+}
+
+.logos img#sig {
+  position:absolute;
+  top:5px;
+  left:150px;
+  width:200px;
+}
+
+.logos img#sei {
+  position:absolute;
+  top:5px;
+  left:400px;
+  width:175px;
+}
+
+.logos img#gee {
+  position:absolute;
+  top:7px;
+  right:5px;
+  width:250px;
+}
+
+/**************/
+/* Search Box */
+/**************/
+
+#searchbox {
+  position:absolute;
+  right:10px;
+  top:4px;
+  width:270px;
+  color: black;
+}
+
+/****************************/
+/* About and Examples Pages */
+/****************************/
+
+#about,
+#examples {
+  display:none;
+  position:absolute;
+  top:0%;
+  left:10%;
+  height:calc(100vh - 90px - 55px);
+  width:76%;
+  padding:2%;
+  overflow:auto;
+  background:rgba(255, 255, 255, 0.8);
+  font-family:Roboto;
+  font-size:16px;
+  filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
+  -ms-filter:progid:DXImageTransform.Microsoft.gradient(startColorstr=#CCFFFFFF, endColorstr=#CCFFFFFF);
+}
+
+#about h1,
+#examples h1 {
+  font-size:1.8rem;
+  font-weight:bold;
+  padding:0.5rem;
+  color:gray;
+}
+
+#about p,
+#examples p {
+  padding:0.5rem;
+  font-size:1.4rem;
+}
+
+#examples span {
+  font-size:1.4rem;
+}
+
+#workflow_img {
+  width: 800px;
+  margin-top: 20px;
+  margin-left: 50px;
+}
+
+.example_items {
+  display: inline-block;
+  margin-top: 10px;
+}
+
+.example_item {
+  display: flex;
+  margin-bottom: 25px;
+  left: 0px;
+  align-items: top;
+}
+
+.example_item  img {
+  width: 175px;
+  height: 150px;
+  margin-right: 10px;
+  cursor: pointer;
+}
+
+.example_img {
+  margin-top: 5px;
+}
+
+/*****************************************/
+/* Application Page Top Level Components */
+/*****************************************/
 
 .water .ui {
   position: absolute;
-  top: 20px;
-  left: 10px;
-  width: 470px;
+  top: 10px;
+  right: 10px;
+  width: 430px;
   z-index: 1;
 }
 
@@ -64,6 +325,8 @@ isindex {
 
 .water .settings-button {
   display: none;
+  position: absolute;
+  right: 0px;
   background-color: white;
   width: 40px;
   font-size: 30px;
@@ -77,205 +340,14 @@ isindex {
   margin-right: 10px;
 }
 
-.water .demo-arrow-general-info{
-  display: none;
-  position: relative;
-  right: -22%;
-  top: 5px;
-  z-index:2;
-}
-
-.water .general-info {
-  display: none;
-}
-
-.water .general-info-shown {
-  display: inline;
-  position: absolute;
-  left: 480px;
-  padding: 15px;
-  margin-top: -5px;
-  width: 450px;
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px gray;
-  overflow: auto;
-  margin-bottom: 0;
-  font-size: 12px;
-  font-weight: normal;
-}
-
-.water .demo-info {
-  display: none;
-  position: fixed;
-  padding: 15px;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px grey;
-  text-align: center;
-  font-size: 12px;
-  font-weight: normal;
-  overflow: auto;
-  z-index: 3;
-}
-
-.water .demo-info-text{
-  margin-bottom: 10px;
-}
-
-.water .demo-button-next{
-  position: relative;
-  left: -10%;
-}
-
-.water .demo-button-exit{
-  position: relative;
-  /*right: -10%;*/
-}
-
-.water .demo-info-clicks{
-  display: none;
-  position: fixed;
-  padding: 15px;
-  top: 75%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px grey;
-  text-align: center;
-  font-size: 12px;
-  font-weight: normal;
-  overflow: auto;
-  z-index: 3;
-}
-
-.water .demo-info-click1{
-  display: none;
-}
-
-.water .demo-info-click2{
-  display: none;
-}
-
-.water .demo-info-click3{
-  display: none;
-}
-
-.water .demo-info-click-final{
-  display: none;
-}
-
 .water .instructions {
-  margin-bottom: 10px;
+  font-size: 12.5px;
+  margin-bottom: 8px;
 }
 
-.water .legend-border {
-  border-style: solid;
-  border-color: white;
-  border-width: 2px;
-  margin: -2px;
-}
-
-.water .legend {
-  margin-top: 0px;
-}
-
-.water .legend-text {
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.water .legend-value {
-  margin-bottom:15px;
-  display:flex;
-  align-items:center;
-}
-
-.water .legend-block {
-  min-width:40px;
-  height:20px;
-  margin-right:10px;
-  border:#bbb solid 1px;
-  background-color:#D3D3D3;
-}
-
-.water #checkbox-aoi {
-  margin-left: 61px;
-  width: 20px;
-  height: 15px;
-  cursor: pointer;
-}
-
-.water #checkbox-water {
-  margin-left: 20px;
-  width: 20px;
-  height: 15px;
-  cursor: pointer;
-}
-
-.water #aoiControlSlider {
-  margin-left: 20px;
-  width: 60px;
-}
-
-.water #aoiControlSlider .slider-selection {
-  background: #D3D3D3;
-}
-
-.water .aoiAlert {
-  margin-left: 40px;
-  font-style: italic;
-}
-
-/* Slider and Loading Alert for single water layers */
-/*
-.water #waterPermControlSlider {
-  margin-left: 30px;
-  width: 60px;
-}
-
-.water #waterPermControlSlider .slider-selection {
-  background: #D3D3D3;
-}
-
-.water #waterTempControlSlider {
-  margin-left: 47px;
-  width: 60px;
-}
-
-.water #waterTempControlSlider .slider-selection {
-  background: #D3D3D3;
-}
-
-.water .waterPermAlert {
-  margin-left: 40px;
-  font-style: italic;
-}
-
-.water .waterTempAlert {
-  margin-left: 40px;
-  font-style: italic;
-}
-*/
-
-/* Slider and Loading Alert for merged layer */
-.water #waterControlSlider {
-  margin-left: 20px;
-  width: 60px;
-}
-
-.water #waterControlSlider .slider-selection {
-  background: #D3D3D3;
-}
-
-.water .waterAlert {
-  margin-left: 40px;
-  font-style: italic;
-}
+/*****************************/
+/* Application Page Controls */
+/*****************************/
 
 .water .controls {
   display: flex;
@@ -288,145 +360,9 @@ isindex {
   flex-grow: 8;
 }
 
-.water .btn.export {
-  display: inline-block;
-  margin-left: 10px;
-}
-
-.water .input-block {
-  display: block;
-  margin-top: 7px;
-}
-
-.water .input-block.date {
-  margin-bottom: 10px;
-}
-
-.water .input-block.region {
-  height: 28px;
-}
-
-.water .input-block.region ul {
-  display: inline-block;
-  list-style-type: none;
-  margin-left: -48px;
-}
-
-.water .input-block.region ul li{
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px;
-  vertical-align: middle;
-}
-
-.water .input-block.region ul li label {
-  font-size: 12px;
-  font-weight: normal;
-  vertical-align: middle;
-  margin-left: 5px;
-}
-
-.water .input-block-label {
-  font-weight: normal;
-  display: inline-block;
-  width: 65px;
-}
-
-.water .date-type-picker input[type=radio] {
-  vertical-align: top;
-  margin-top: 2px;
-}
-
-.water .date-type-picker label {
-  font-style: italic;
-  font-weight: normal;
-}
-
-.water .date-type-picker .or {
-  padding: 0 .3em;
-}
-
-.water .period_slice {
-  margin-left: 10px;
-  margin-right: 10px;
-}
-
-.water .submit {
-  margin-left: 10px;
-}
-
-.water .range-picker,
-.water .average-picker, {
-  display: block;
-}
-
-.water .filename {
-  width: 59%;
-  display: inline;
-}
-
-.water .date-picker {
-  display: inline-block;
-  width: 26%;
-}
-
-.water .date-picker-2 {
-  display: inline-block;
-  width: 26%;
-}
-
-.water .region .message {
-  font-style: italic;
-  color: gray;
-}
-
-.water .region .message-drawing,
-.water .region .message-selected {
-  display: none;
-}
-
-.water .region.selected .message,
-.water .region.drawing .message {
-  display: none;
-}
-
-.water .region.drawing .message-drawing {
-  display: inline;
-}
-
-.water .region.selected .message-selected {
-  display: inline;
-  color: green;
-  font-style: normal;
-}
-
-.water .region.selected .message-selected .clear {
-  color: black;
-}
-
-.water .export-info-button {
-  margin-left: 5px;
-}
-
-.water .export-info {
-  display: none;
-}
-
-.water .export-info-shown {
-  display: inline;
-  position: absolute;
-  left: 480px;
-  padding: 15px;
+.water .expert {
   margin-top: -5px;
-  width: 450px;
-  height: 260px;
-  border-radius: 2px;
-  background-color: white;
-  box-shadow: 0px 0px 5px gray;
-  overflow: auto;
-  margin-bottom: 0;
-  font-size: 12px;
-  font-weight: normal;
+  margin-left: 68px;
 }
 
 .water .expert-toggle {
@@ -485,6 +421,180 @@ isindex {
   bottom: 8px;
 }
 
+.water .reset-button {
+  margin-top: 10px;
+  margin-bottom: 0px;
+  margin-left: 65px;
+}
+
+.water .expert-reset {
+  margin-left: 3px;
+}
+
+.water .btn.export {
+  display: inline-block;
+  margin-left: 10px;
+}
+
+.water .input-block {
+  display: block;
+  margin-top: 7px;
+}
+
+.water .input-block.date {
+  margin-bottom: 0px;
+  margin-top: 0px;
+}
+
+.water .input-block.region {
+  height: 28px;
+}
+
+.water .input-block.region ul {
+  display: inline-block;
+  list-style-type: none;
+  margin-left: -48px;
+}
+
+.water .input-block.region ul li{
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px;
+  vertical-align: middle;
+}
+
+.water .input-block.region ul li label {
+  font-size: 12px;
+  font-weight: normal;
+  vertical-align: middle;
+  margin-left: 5px;
+}
+
+.water .input-block-label {
+  font-weight: normal;
+  display: inline-block;
+  width: 65px;
+}
+
+.water .date-type-picker input[type=radio] {
+  vertical-align: top;
+  margin-top: 2px;
+}
+
+.water .date-type-picker label {
+  font-style: italic;
+  font-weight: normal;
+}
+
+.water .date-type-picker .or {
+  padding: 0 .3em;
+}
+
+.water .period_slice {
+  margin-left: 7px;
+  margin-right: 7px;
+}
+
+.water .submit {
+  margin-left: 10px;
+  margin-bottom: 0px;
+}
+
+.water .range-picker,
+.water .average-picker, {
+  display: block;
+}
+
+.water .filename {
+  width: 43%;
+  display: inline;
+  font-size: 12px;
+}
+
+.water .date-picker {
+  display: inline-block;
+  width: 26%;
+}
+
+.water .date-picker-2 {
+  display: inline-block;
+  width: 26%;
+}
+
+.water .region .message {
+  font-style: italic;
+  color: gray;
+}
+
+.water .region .message-drawing,
+.water .region .message-selected {
+  display: none;
+}
+
+.water .region.selected .message,
+.water .region.drawing .message {
+  display: none;
+}
+
+.water .region.drawing .message-drawing {
+  display: inline;
+}
+
+.water .region.selected .message-selected {
+  display: inline;
+  color: green;
+  font-style: normal;
+}
+
+.water .region.selected .message-selected .clear {
+  color: black;
+}
+
+.water .export-info-button {
+  margin-left: 5px;
+}
+/*
+.water #monthsControlSlider {
+  display: show;
+  left: 15px;
+  bottom: 120px;
+  position: absolute;
+}
+*/
+.water .months-slider {
+  display: none;
+  margin-left: -43px;
+  margin-top: 30px;
+}
+.water #monthsControlSlider {
+  margin-left: 30px;
+}
+
+/********************************/
+/* Application Page Info Panels */
+/********************************/
+
+.water .general-info {
+  display: none;
+}
+
+.water .general-info-shown {
+  display: inline;
+  position: absolute;
+  right: 440px;
+  top: 7px;
+  padding: 15px;
+  margin-top: -5px;
+  width: 450px;
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0px 0px 5px gray;
+  overflow: auto;
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: normal;
+}
+
 .water .climatology-info,
 .water .defringe-info,
 .water .percentile-info,
@@ -505,7 +615,7 @@ isindex {
   display: block;
   position: fixed;
   top: 56%;
-  left: 490px;
+  right: 450px;
   transform: translate(0%, 0%);
   padding: 15px;
   width: 450px;
@@ -518,43 +628,131 @@ isindex {
   z-index: 2;
 }
 
-.water .reset-button {
-  margin-top: 10px;
-  margin-left: 65px;
-}
-
-.water .expert-reset {
-  margin-left: 3px;
-}
-
-.water .attr-show-button {
+.water .export-info {
   display: none;
-  font-size: 20px;
-  transform: rotate(-90deg);
-  float: right;
-  cursor: pointer;
 }
 
-.water .attributions {
+.water .export-info-shown {
+  display: block;
+  position: fixed;
+  top: 56%;
+  right: 450px;
+  padding: 15px;
+  margin-top: -5px;
+  width: 450px;
+  height: 235px;
+  border-radius: 2px;
   background-color: white;
-  margin-top: 20px;
+  box-shadow: 0px 0px 5px gray;
+  overflow: auto;
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: normal;
 }
 
-.water .attr-collapse-button {
+/*******************************/
+/* Application Page Map Layers */
+/*******************************/
+
+.water .map-layers-control {
+  display: block;
+  margin-top: 0px;
+}
+
+.water .map-layers-text {
   display: inline;
-  font-size: 20px;
-  transform: rotate(90deg);
-  float: right;
-  margin-top: 20px;
+  margin-bottom: 5px;
+  float: left;
+}
+
+.water .map-layers {
+  display: inline-block;
+}
+
+.water .map-layers-value {
+  margin-bottom:5px;
+  display:flex;
+  align-items:center;
+}
+
+.water #checkbox-aoi {
+  margin-left: 22px;
+  width: 20px;
+  height: 15px;
   cursor: pointer;
 }
 
-.water #monthsControlSlider {
-  display: none;
-  right: 15px;
-  bottom: 150px;
-  position: absolute;
+.water #checkbox-water {
+  margin-left: 22px;
+  width: 20px;
+  height: 15px;
+  cursor: pointer;
 }
+
+.water #aoiControlSlider {
+  margin-left: 20px;
+  width: 60px;
+}
+
+.water #aoiControlSlider .slider-selection {
+  background: #D3D3D3;
+}
+
+.water #waterControlSlider {
+  margin-left: 59px;
+  width: 60px;
+}
+
+.water #waterControlSlider .slider-selection {
+  background: #D3D3D3;
+}
+
+/***************************/
+/* Application Page Legend */
+/***************************/
+
+.water .legend-border {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  border-style: solid;
+  border-color: none;
+  border-width: 0px;
+  margin: -2px;
+  z-index: 1;
+}
+
+.water .legend {
+  margin-top: 0px;
+  padding: 6px 6px 1px 6px;
+  background-color: white;
+  border-radius: 2px;
+  box-shadow: 0px 0px 5px gray;
+}
+
+.water .legend-text {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.water .legend-value {
+  font-size: 12px;
+  margin-bottom:10px;
+  display:flex;
+  align-items:center;
+}
+
+.water .legend-block {
+  min-width:40px;
+  height:20px;
+  margin-right:10px;
+  border:#bbb solid 1px;
+  background-color:#D3D3D3;
+}
+
+/*****************************/
+/* Application Page Warnings */
+/*****************************/
 
 .water .warnings {
   display: none;
@@ -576,11 +774,15 @@ isindex {
   z-index: 4;
 }
 
+/***********************************/
+/* Application Page Download Panel */
+/***********************************/
+
 .water .download_panel {
   display: none;
   position: absolute;
-  top: 45px;
-  right: 10px;
+  top: 10px;
+  left: 120px;
   width: 250px;
   overflow: auto;
   padding: 5px;
@@ -590,7 +792,7 @@ isindex {
   font-size: 12px;
   font-weight: normal;
   font-style: italic;
-  z-index: 1;
+  z-index: 2;
 }
 
 .water #download_prep {
@@ -604,6 +806,55 @@ isindex {
 .water #link_metadata {
   display: none;
 }
+
+/******************/
+/* Spinner Widget */
+/******************/
+
+.spinner {
+  display: none;
+  position:absolute;
+  top:40%;
+  left:40%;
+  width:8rem;
+  height:8rem;
+  border-radius:4rem;
+  border-bottom:1rem solid purple;
+  animation:sweep 1s infinite linear;
+  -moz-animation:sweep 1s infinite linear;
+  -webkit-animation:sweep 1s infinite linear;
+}
+
+@keyframes sweep {
+  from {
+      transform:rotate(0deg);
+  }
+  to {
+      transform:rotate(360deg);
+  }
+}
+
+@-moz-keyframes sweep {
+  from {
+      -moz-transform:rotate(0deg);
+  }
+  to {
+      -moz-transform:rotate(360deg);
+  }
+}
+
+@-webkit-keyframes sweep {
+  from {
+      -webkit-transform:rotate(0deg);
+  }
+  to {
+      -webkit-transform:rotate(360deg);
+  }
+}
+
+/*************************/
+/* Application Page Rest */
+/*************************/
 
 .water .water {
   flex-grow: 1;

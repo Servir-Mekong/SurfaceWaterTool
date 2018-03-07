@@ -23,31 +23,36 @@ water.boot = function() {
 
 // The main Surface Water Tool application with default settings
 water.App = function() {
-  // Create and display the map.
+  // create and display the map
   this.map = water.App.createMap();
   
-  // The drawing manager, for drawing on the Google Map.
+  // drawing manager
   this.drawingManager = water.App.createDrawingManager(this.map);
   
   // The currently active layer
-  //(used to prevent reloading when requested layer is the same).
+  //(used to prevent reloading when requested layer is the same)
   this.currentLayer = {};
 	this.aoiParams = {};
 	this.waterParams = {};
   
-   // Initialize the UI components.
+   // initialize the UI components
   this.initDatePickers();
   this.initRegionPicker();
 	this.toggleBoxes();
   this.opacitySliders();
   this.climatologySlider();
   this.initExport();
+	this.loadSearchBox();
+	
+	// set default parameters
+	this.setDefaultParams();
   
-  // Load the basic background maps.
-  this.loadBasicMaps();
+  // load the background map
+  this.loadBackground();
   
-   // Load the default image.
-  this.refreshImage();
+   // load the default image
+  //this.refreshImage();  // calculate new layer based on initial params
+	this.loadDefault();  // use pre-calculated layer
 };
 
 /**
@@ -59,29 +64,50 @@ water.App.createMap = function() {
   var mapOptions = {
     center: water.App.DEFAULT_CENTER,
     zoom: water.App.DEFAULT_ZOOM,
-	maxZoom: water.App.MAX_ZOOM,
-	//disableDefaultUI: true,
-	streetViewControl: false,
-	mapTypeControl: true,
-	mapTypeControlOptions: {position: google.maps.ControlPosition.RIGHT_BOTTOM}
+		maxZoom: water.App.MAX_ZOOM,
+		zoomControl: true,
+		zoomControlOptions: {position: google.maps.ControlPosition.LEFT_TOP},
+		//disableDefaultUI: true,
+		streetViewControl: false,
+		mapTypeControl: true,
+		mapTypeControlOptions: {position: google.maps.ControlPosition.TOP_LEFT},
+		fullscreenControl: false
   };
   var mapEl = $('.map').get(0);
   var map = new google.maps.Map(mapEl, mapOptions);
   return map;
 };
 
-// Load basic maps upon loading the main web page
-water.App.prototype.loadBasicMaps = function() {
-  var name1 = 'AoI_fill';
-	var name2 = 'AoI_border';
+// Load background map upon loading the main web page
+water.App.prototype.loadBackground = function() {
+  var name = 'AoI';
   $.ajax({
-    url: "/get_basic_maps",
+    url: "/get_background",
     dataType: "json",
     success: function (data) {
-		water.instance.aoiParams = {'mapId': data.eeMapId_fill, 'token': data.eeToken_fill};
-	  water.instance.showBasicMap(data.eeMapId_fill, data.eeToken_fill, name1, 0);
-	  water.instance.setLayerOpacity('AoI_fill', parseFloat($("#aoiControl").val()));
-	  water.instance.showBasicMap(data.eeMapId_border, data.eeToken_border, name2, 1);
+		water.instance.aoiParams = {'mapId': data.eeMapId, 'token': data.eeToken};
+	  water.instance.showBackground(data.eeMapId, data.eeToken, name, 0);
+	  water.instance.setLayerOpacity('AoI', parseFloat($("#aoiControl").val()));
+    },
+    error: function (data) {
+      console.log(data.responseText);
+    }
+  });
+}
+
+// Load default water map upon loading the main web page
+water.App.prototype.loadDefault = function() {
+	// obtain default params and set those in current layer check
+  //var params        = this.getAllParams();
+	//this.currentLayer = params;
+	// set map layer
+  var name = 'water';
+  $.ajax({
+    url: "/get_default",
+    dataType: "json",
+    success: function (data) {
+			water.instance.waterParams = {'mapId': data.eeMapId, 'token': data.eeToken};
+			water.instance.setWaterMap(data.eeMapId, data.eeToken, name, 2);
     },
     error: function (data) {
       console.log(data.responseText);
@@ -90,18 +116,19 @@ water.App.prototype.loadBasicMaps = function() {
 }
 
 // Push map with mapId and token obtained from EE Python
-water.App.prototype.showBasicMap = function(eeMapId, eeToken, name, index) {
-  this.showLoadingAlert(name);
-  //var mapType = water.App.getEeMapType(eeMapId, eeToken, name);  // obsolete, using ee.MapLayerOverlay instead
+water.App.prototype.showBackground = function(eeMapId, eeToken, name, index) {
+  // start by adding layer to loading list (also activates loading message)
+  this.addLoadingLayer(name);
+	// obtain new layer
   var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
-  //this.map.overlayMapTypes.push(mapType);        // old, just push to array, will always show latest layer on top
-	this.map.overlayMapTypes.setAt(index, mapType);  // new, use index to keep correct zIndex when adding/removing layers
+	// add new layer
+	this.map.overlayMapTypes.setAt(index, mapType);
   // handle layer loading alerts
   mapType.addTileCallback((function(event) {
     if (event.count === 0) {
-      this.removeLoadingAlert(name);
+      this.removeLoadingLayer(name);
     } else {
-	  this.showLoadingAlert(name);
+	  this.addLoadingLayer(name);
 	}
   }).bind(this));
 };
@@ -129,14 +156,9 @@ water.App.prototype.initDatePickers = function() {
     startDate: new Date('1988-01-01'),
     endDate: new Date()
   });
-
   // Set default dates.
-  $('.date-picker').datepicker('update', '2016-01-01');
-  $('.date-picker-2').datepicker('update', '2016-12-31');
-
-  // Respond when the user updates the dates.
-  //$('.date-picker').on('changeDate', this.refreshImage.bind(this));
-  
+  //$('.date-picker').datepicker('update', '2017-01-01');
+  //$('.date-picker-2').datepicker('update', '2017-12-31');
   // Respond when the user clicks the 'submit' button.
   $('.submit').on('click', this.refreshImage.bind(this));
 };
@@ -157,23 +179,19 @@ water.App.prototype.getTimeParams = function() {
 water.App.prototype.getExpertParams = function() {
   return {
     climatology: $(".climatology-input").is(':checked'),
-	month_index: parseInt($("#monthsControl").val()),
-	defringe: $(".defringe-input").is(':checked'),
-	pcnt_perm: parseFloat($('.percentile-input-perm').val()),
-	pcnt_temp: parseFloat($('.percentile-input-temp').val()),
-	water_thresh: parseFloat($('.water-threshold-input').val()),
-	veg_thresh: parseFloat($('.veg-threshold-input').val()),
-	hand_thresh: parseFloat($('.hand-threshold-input').val()),
-	cloud_thresh: parseInt($('.cloud-threshold-input').val())
+		month_index: parseInt($("#monthsControl").val()),
+		defringe: $(".defringe-input").is(':checked'),
+		pcnt_perm: parseFloat($('.percentile-input-perm').val()),
+		pcnt_temp: parseFloat($('.percentile-input-temp').val()),
+		water_thresh: parseFloat($('.water-threshold-input').val()),
+		veg_thresh: parseFloat($('.veg-threshold-input').val()),
+		hand_thresh: parseFloat($('.hand-threshold-input').val()),
+		cloud_thresh: parseInt($('.cloud-threshold-input').val())
   };
 };
 
-// ---------------------------------------------------------------------------------- //
-// Climatology slider
-// ---------------------------------------------------------------------------------- //
-
 water.App.prototype.climatologySlider = function() {
-  $("#monthsControl").on("slideStop", this.refreshImage.bind(this));
+  $("#monthsControl").on("slideStop", this.updateSlider.bind(this));
 }
 
 // ---------------------------------------------------------------------------------- //
@@ -187,12 +205,44 @@ water.App.prototype.getAllParams = function() {
   return $.extend(timeParams, expertParams);
 };
 
+water.App.prototype.setParams = function(params) {
+	// set input parameters
+	$('.date-picker').val(params['time_start']);
+	$('.date-picker-2').val(params['time_end']);
+	$(".climatology-input").attr('checked', Boolean(params['climatology']));
+	$("#monthsControl").val(params['month_index']);
+	$(".defringe-input").attr('checked', Boolean(params['defringe']));
+	$('.percentile-input-perm').val(params['pcnt_perm']);
+	$('.percentile-input-temp').val(params['pcnt_temp']);
+	$('.water-threshold-input').val(params['water_thresh']);
+	$('.veg-threshold-input').val(params['veg_thresh']);
+	$('.hand-threshold-input').val(params['hand_thresh']);
+	$('.cloud-threshold-input').val(params['cloud_thresh']);
+}
+
+water.App.prototype.setDefaultParams = function() {
+	this.setParams(water.App.DEFAULT_PARAMS);
+}
+
+water.App.prototype.updateSlider = function() {
+	if (water.App.EXAMPLE_MONTHS_ACTIVE) {
+		// get slider value
+		var month = parseInt($("#monthsControl").val());
+		// get mapid and token (calculated when specific example is opened)
+		var month_data = water.instance.exampleParams[month];
+		// update map using pre-calculated example
+		water.instance.waterParams = {'mapId': month_data.eeMapId, 'token': month_data.eeToken};
+		water.instance.setWaterMap(month_data.eeMapId, month_data.eeToken, 'water', 2);
+	} else {
+		// update map with new calculation
+		this.refreshImage();
+	}
+}
+
 // Updates the image based on the current control panel config.
 water.App.prototype.refreshImage = function() {
   
   var name = 'water';
-  //var name1 = 'water_temporary';
-  //var name2 = 'water_permanent';
   
   // obtain params
   var params = this.getAllParams();
@@ -224,20 +274,18 @@ water.App.prototype.refreshImage = function() {
     return;
   } else {
     
-    //remove warnings
+  //remove warnings
 	$('.warnings span').text('')
 	$('.warnings').hide();
 	
-    // remove map layers
+  // remove map layers
 	this.removeLayer(name);
-	//this.removeLayer(name1);
-	//this.removeLayer(name2);
 	
 	// add climatology slider if required
 	if (params['climatology'] == true) {
-	  $("#monthsControlSlider").show();
+	  $(".months-slider").show();
 	} else {
-	  $("#monthsControlSlider").hide();
+	  $(".months-slider").hide();
 	};
 	
 	// query new map
@@ -247,9 +295,7 @@ water.App.prototype.refreshImage = function() {
 		dataType: "json",
 		success: function (data) {
 			water.instance.waterParams = {'mapId': data.eeMapId, 'token': data.eeToken};
-			water.instance.setWaterMap(data.eeMapId, data.eeToken, name, 2)
-			//water.instance.setWaterMap(data.eeMapId_temporary, data.eeToken_temporary, name1, 2)
-			//water.instance.setWaterMap(data.eeMapId_permanent, data.eeToken_permanent, name2, 3)
+			water.instance.setWaterMap(data.eeMapId, data.eeToken, name, 2);
 		},
 		error: function (data) {
 			console.log(data.responseText);
@@ -263,21 +309,20 @@ water.App.prototype.refreshImage = function() {
 
 // Push map with mapId and token obtained from EE Python
 water.App.prototype.setWaterMap = function(eeMapId, eeToken, name, index) {
-  this.showLoadingAlert(name);
+  // start by adding layer to loading list (also activates loading message)
+  this.addLoadingLayer(name);
   // obtain new layer
-  //var mapType = water.App.getEeMapType(eeMapId, eeToken, name);  // obsolete, using ee.MapLayerOverlay instead
   var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
   // remove old layer
   this.removeLayer(name);
   // add new layer
-  //this.map.overlayMapTypes.push(mapType);        // old, just push to array, will always show latest layer on top
-	this.map.overlayMapTypes.setAt(index, mapType);  // new, use index to keep correct zIndex when adding/removing layers
+	this.map.overlayMapTypes.setAt(index, mapType);
   // handle layer loading alerts
   mapType.addTileCallback((function(event) {
     if (event.count === 0) {
-      this.removeLoadingAlert(name);
+      this.removeLoadingLayer(name);
     } else {
-	  this.showLoadingAlert(name);
+	  this.addLoadingLayer(name);
 	}
   }).bind(this));
 };
@@ -289,8 +334,8 @@ water.App.prototype.setWaterMap = function(eeMapId, eeToken, name, index) {
 water.App.prototype.removeLayer = function(name) {
   this.map.overlayMapTypes.forEach((function(mapType, index) {
     if (mapType && mapType.name == name) {
-      //this.map.overlayMapTypes.removeAt(index);   // old, hard removal
-			this.map.overlayMapTypes.setAt(index, null);  // new, instead set null at the same index (to keep length of array intact, used for adding/removing layers and keep their zIndex intact)
+		  // set null at relevant index (to keep length of array intact, used for adding/removing layers and keep their zIndex intact)
+			this.map.overlayMapTypes.setAt(index, null);
     }
   }).bind(this));
 };
@@ -316,59 +361,37 @@ water.App.prototype.setLayerOpacity = function(name, value) {
  */
  water.App.prototype.toggleLayer = function(name, toggle) {
 	if (toggle) {
-		//console.log('layer should be toggled on now!');
 		if (name == 'water') {
 			this.setWaterMap(this.waterParams.mapId, this.waterParams.token, 'water', 2);
-		} else if (name == 'AoI_fill') {
-			this.showBasicMap(this.aoiParams.mapId, this.aoiParams.token, 'AoI_fill', 0);
-			water.instance.setLayerOpacity('AoI_fill', parseFloat($("#aoiControl").val()));
+		} else if (name == 'AoI') {
+			this.showBackground(this.aoiParams.mapId, this.aoiParams.token, 'AoI', 0);
+			water.instance.setLayerOpacity('AoI', parseFloat($("#aoiControl").val()));
 		}
 	} else {
-		//console.log('layer should be toggled off now!');
 		this.removeLayer(name);
 	}
 }
 
 // ---------------------------------------------------------------------------------- //
-// Layer toggle control
+// Layer toggle and opacity control
 // ---------------------------------------------------------------------------------- //
 
 water.App.prototype.toggleBoxes = function() {
 	$('#checkbox-aoi').on("change", function() {
-		water.instance.toggleLayer('AoI_fill', this.checked);
+		water.instance.toggleLayer('AoI', this.checked);
 	});
 	$('#checkbox-water').on("change", function() {
 		water.instance.toggleLayer('water', this.checked);
 	});
 }
 
-// ---------------------------------------------------------------------------------- //
-// Layer opacity control
-// ---------------------------------------------------------------------------------- //
-
 water.App.prototype.opacitySliders = function() {
   $("#aoiControl").on("slide", function(slideEvt) {
-		water.instance.setLayerOpacity('AoI_fill', slideEvt.value);
+		water.instance.setLayerOpacity('AoI', slideEvt.value);
   });
   $("#aoiControl").on("slideStop", function(slideEvt) {
-		water.instance.setLayerOpacity('AoI_fill', slideEvt.value);
+		water.instance.setLayerOpacity('AoI', slideEvt.value);
   });
-  // in case of split up permanent and temporary water layers:
-  /*
-  $("#waterPermControl").on("slide", function(slideEvt) {
-		water.instance.setLayerOpacity('water_permanent', slideEvt.value);
-  });
-  $("#waterPermControl").on("slideStop", function(slideEvt) {
-		water.instance.setLayerOpacity('water_permanent', slideEvt.value);
-  });
-  $("#waterTempControl").on("slide", function(slideEvt) {
-		water.instance.setLayerOpacity('water_temporary', slideEvt.value);
-  });
-  $("#waterTempControl").on("slideStop", function(slideEvt) {
-		water.instance.setLayerOpacity('water_temporary', slideEvt.value);
-  });
-  */
-  // in case of merged permanent and temporary water layers:
   $("#waterControl").on("slide", function(slideEvt) {
 		water.instance.setLayerOpacity('water', slideEvt.value);
   });
@@ -381,32 +404,27 @@ water.App.prototype.opacitySliders = function() {
 // Alerts
 // ---------------------------------------------------------------------------------- //
 
-water.App.prototype.showLoadingAlert = function(name) {
-  if (name == 'water') {
-    $(".waterAlert").show();
-  } else if (name == 'AoI_fill') {
-    $(".aoiAlert").show();
-  } else if (name == 'water_permanent') {
-    $(".waterPermAlert").show();
-  } else if (name == 'water_temporary') {
-    $(".waterTempAlert").show();
-  } else {
-    return
-  }
+water.App.prototype.addLoadingLayer = function(name) {
+	if (!water.App.LOADING_LAYERS.includes(name)) {
+		water.App.LOADING_LAYERS.push(name);
+	}
+	this.checkLoadingAlert();
 }
 
-water.App.prototype.removeLoadingAlert = function(name) {
-  if (name == 'water') {
-    $(".waterAlert").hide();
-  } else if (name == 'AoI_fill') {
-    $(".aoiAlert").hide();
-  } else if (name == 'water_permanent') {
-    $(".waterPermAlert").hide();
-  } else if (name == 'water_temporary') {
-    $(".waterTempAlert").hide();
-  } else {
-    return
-  }
+water.App.prototype.removeLoadingLayer = function(name) {
+	if (water.App.LOADING_LAYERS.includes(name)) {
+		var temp_index = water.App.LOADING_LAYERS.indexOf(name);
+		water.App.LOADING_LAYERS.splice(temp_index, 1);
+	}
+	this.checkLoadingAlert();
+}
+
+water.App.prototype.checkLoadingAlert = function() {
+	if (water.App.LOADING_LAYERS.length > 0) {
+		$(".spinner").show();
+	} else {
+		$(".spinner").hide();
+	}
 }
 
 // ---------------------------------------------------------------------------------- //
@@ -480,6 +498,24 @@ water.App.prototype.initRegionPicker = function() {
 				// check if current selection doesn't exceed allowed maximum
 				if (nr_selected < water.App.MAX_SELECTION) {
 					nr_selected += 1;
+					if (selection == 'Tiles') {
+						$.ajax({
+							url: "/select_tile",
+							data: params,
+							dataType: "json",
+							success: function (data) {
+								water.instance.showMap(data.eeMapId, data.eeToken, name, 4 + nr_selected - 1);
+								$('.export').attr('disabled', false);
+								//water.instance.point = params;
+								water.instance.points.push(params);
+							},
+							error: function (data) {
+								console.log(data.responseText);
+							}
+						});
+					} else if (selection == 'Adm. bounds') {
+						console.log('NOT IMPLEMENTED YET FOR ADMIN BOUNDS!');
+					}
 				} else {
 					return;
 				}
@@ -489,53 +525,53 @@ water.App.prototype.initRegionPicker = function() {
 				}
 				nr_selected = 1;
 				water.instance.points = [];
+				if (selection == 'Tiles') {
+					$.ajax({
+						url: "/select_tile",
+						data: params,
+						dataType: "json",
+						success: function (data) {
+							water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
+							$('.export').attr('disabled', false);
+							//water.instance.point = params;
+							water.instance.points.push(params);
+						},
+						error: function (data) {
+							console.log(data.responseText);
+						}
+					});
+				} else if (selection == 'Adm. bounds') {
+					$('.warnings span').text('')
+					$('.warnings').hide();
+					$.ajax({
+						url: "/select_adm_bounds",
+						data: params,
+						dataType: "json",
+						success: function (data) {
+							water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
+							//console.log(data.size);
+							if (data.size > water.App.AREA_LIMIT_2) {
+								$('.export').attr('disabled', true);
+								$('.warnings span').text('The selected area is larger than ' + water.App.AREA_LIMIT_2 + ' km2. This exceeds the current limitations for downloading data. ' +
+																				 'Please use one of the other region selection options to download data for this area.')
+								$('.warnings').show();
+							} else if (data.size > water.App.AREA_LIMIT_1) {
+								$('.export').attr('disabled', false);
+								$('.warnings span').text('The selected area is larger than ' + water.App.AREA_LIMIT_1 + ' km2. This is near the current limitation for downloading data. '+ 
+																				 'Please be warned that the download might result in a corrupted zip file. You can give it a try or use  one of the other region selection options to download data for this area.')
+								$('.warnings').show();
+							} else {
+								$('.export').attr('disabled', false);
+							}
+							//water.instance.point = params;
+							water.instance.points.push(params);
+						},
+						error: function (data) {
+							console.log(data.responseText);
+						}
+					});
+				}
 			}
-		}
-		if (selection == 'Tiles') {
-			$.ajax({
-				url: "/select_tile",
-				data: params,
-				dataType: "json",
-				success: function (data) {
-					water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
-					$('.export').attr('disabled', false);
-					//water.instance.point = params;
-					water.instance.points.push(params);
-				},
-				error: function (data) {
-					console.log(data.responseText);
-				}
-			});
-		} else if (selection == 'Adm. bounds') {
-			$('.warnings span').text('')
-			$('.warnings').hide();
-			$.ajax({
-				url: "/select_adm_bounds",
-				data: params,
-				dataType: "json",
-				success: function (data) {
-					water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
-					//console.log(data.size);
-					if (data.size > water.App.AREA_LIMIT_2) {
-						$('.export').attr('disabled', true);
-						$('.warnings span').text('The selected area is larger than ' + water.App.AREA_LIMIT_2 + ' km2. This exceeds the current limitations for downloading data. ' +
-																		 'Please use one of the other region selection options to download data for this area.')
-						$('.warnings').show();
-					} else if (data.size > water.App.AREA_LIMIT_1) {
-						$('.export').attr('disabled', false);
-						$('.warnings span').text('The selected area is larger than ' + water.App.AREA_LIMIT_1 + ' km2. This is near the current limitation for downloading data. '+ 
-																		 'Please be warned that the download might result in a corrupted zip file. You can give it a try or use  one of the other region selection options to download data for this area.')
-						$('.warnings').show();
-					} else {
-						$('.export').attr('disabled', false);
-					}
-					//water.instance.point = params;
-					water.instance.points.push(params);
-				},
-				error: function (data) {
-					console.log(data.responseText);
-				}
-			});
 		}
 	});
 	
@@ -588,7 +624,7 @@ water.App.prototype.initRegionPicker = function() {
 			// hide export panel
 			$('.download_panel').css('display', 'none');
 		}
-		// Allow multiple selection if the user presses and holds down ctrl.  // WORK IN PROGRESS
+		// Allow multiple selection if the user presses and holds down ctrl.
 		if (event.which == 17) {
 			var selection = $("input[name='polygon-selection-method']:checked").val();
 			if (selection == 'Tiles' || selection == 'Adm. bounds') {
@@ -729,8 +765,7 @@ water.App.prototype.loadTilesMap = function() {
 // Show map
 water.App.prototype.showMap = function(eeMapId, eeToken, name, index) {
   var mapType = new ee.MapLayerOverlay(water.App.EE_URL + '/map', eeMapId, eeToken, {name: name});
-  //this.map.overlayMapTypes.push(mapType);        // old, just push to array, will always show latest layer on top
-	this.map.overlayMapTypes.setAt(index, mapType);  // new, use index to keep correct zIndex when adding/removing layers
+	this.map.overlayMapTypes.setAt(index, mapType);
 };
 
 // ---------------------------------------------------------------------------------- //
@@ -760,7 +795,7 @@ water.App.prototype.initExport = function() {
 		var base_params = water.App.prototype.getAllParams();
 		var export_name = $("input[name='filename']").val();
 		if (export_name == "") {
-			export_name = 'SurfaceWaterTool_' + base_params.time_start + '_' + base_params.time_end;
+			export_name = 'SWMT_' + base_params.time_start + '_' + base_params.time_end;
 		}
 		// get download link(s)
 		var region_selection = $("input[name='polygon-selection-method']:checked").val();
@@ -781,7 +816,6 @@ water.App.prototype.initExport = function() {
 					// hide prep message
 					$('#download_prep').css('display', 'none');
 					// show result
-					//water.instance.showMap(data.eeMapId, data.eeToken, 'test', 4);
 					//console.log(data);
 					//window.location.replace(data);
 					$('#link1').css('display', 'block');
@@ -804,7 +838,6 @@ water.App.prototype.initExport = function() {
 						// hide prep message
 						$('#download_prep').css('display', 'none');
 						// show result
-						//water.instance.showMap(data.eeMapId, data.eeToken, 'test', 4);
 						//console.log(data);
 						//window.location.replace(data);
 						$('#link' + (async_ajax_call_export_counter+1)).css('display', 'block');
@@ -842,6 +875,78 @@ water.App.prototype.initExport = function() {
 };
 
 // ---------------------------------------------------------------------------------- //
+// Examples
+// ---------------------------------------------------------------------------------- //
+
+water.App.prototype.loadExample = function(example_id) {
+	// handle visualization of app components
+	$(".map").css("display", "block");
+	$(".ui").css("display", "block");
+	$(".legend-border").css("display", "block");
+	$("#examples").css("display", "none");
+	$("#about").css("display", "none");
+	$(".months-slider").hide();
+	$("#searchbox").css("display", "block");
+	
+	// remove old water layer
+	water.instance.removeLayer('water');
+	
+	// carry out actions based on example id
+	water.App.EXAMPLE_MONTHS_ACTIVE = false;
+	if (example_id === 'example_1') {
+		this.setParams(water.App.EXAMPLE_PARAMS_1);
+		water.App.setMapCoords(water.App.EXAMPLE_CENTER_1, water.App.EXAMPLE_ZOOM_1);
+	} else if (example_id === 'example_2') {
+		this.setParams(water.App.EXAMPLE_PARAMS_2);
+		water.App.setMapCoords(water.App.EXAMPLE_CENTER_2, water.App.EXAMPLE_ZOOM_2);
+	} else if (example_id === 'example_3') {
+		this.setParams(water.App.EXAMPLE_PARAMS_3);
+		water.App.setMapCoords(water.App.EXAMPLE_CENTER_3, water.App.EXAMPLE_ZOOM_3);
+	} else if (example_id === 'example_4') {
+		this.setParams(water.App.EXAMPLE_PARAMS_4);
+		water.App.setMapCoords(water.App.EXAMPLE_CENTER_4, water.App.EXAMPLE_ZOOM_4);
+	} else if (example_id === 'example_5') {
+		this.setParams(water.App.EXAMPLE_PARAMS_5);
+		water.App.setMapCoords(water.App.EXAMPLE_CENTER_5, water.App.EXAMPLE_ZOOM_5);
+		water.App.EXAMPLE_MONTHS_ACTIVE = true;
+	}
+	
+	// update map
+	if (example_id !== 'example_5') {
+		params = {'example_id':example_id};
+		$.ajax({
+			url: "/get_example_map",
+			data: params,
+			dataType: "json",
+			success: function (data) {
+				water.instance.waterParams = {'mapId': data.eeMapId, 'token': data.eeToken};
+				water.instance.setWaterMap(data.eeMapId, data.eeToken, 'water', 2);
+			},
+			error: function (data) {
+				console.log(data.responseText);
+			}
+		});
+	} else {
+		this.addLoadingLayer('example');
+		$.ajax({
+			url: "/get_example_months",
+			dataType: "json",
+			success: function (data) {
+				$(".months-slider").show();
+				water.instance.exampleParams = data;
+				water.instance.waterParams = {'mapId': data[1].eeMapId, 'token': data[1].eeToken};
+				water.instance.setWaterMap(data[1].eeMapId, data[1].eeToken, 'water', 2);
+				water.instance.removeLoadingLayer('example');
+			},
+			error: function (data) {
+				console.log(data.responseText);
+				water.instance.removeLoadingLayer('example');
+			}
+		});
+	}
+}
+
+// ---------------------------------------------------------------------------------- //
 // Static helpers and constants
 // ---------------------------------------------------------------------------------- //
 
@@ -852,30 +957,6 @@ water.App.prototype.numberOfDays = function(day1, day2) {
   var secondDate = new Date(day2);
   return Math.round(Math.abs((firstDate.getTime() - secondDate.getTime())/(oneDay)));
 }
-
-/**
- * NOTE: obsolete, using ee.MapLayerOverlay instead!
- * Generates a Google Maps map type (or layer) for the passed-in EE map id. See:
- * https://developers.google.com/maps/documentation/javascript/maptypes#ImageMapTypes
- * @param {string} eeMapId The Earth Engine map ID.
- * @param {string} eeToken The Earth Engine map token.
- * @return {google.maps.ImageMapType} A Google Maps ImageMapType object for the
- *     EE map with the given ID and token.
- */
-water.App.getEeMapType = function(eeMapId, eeToken, name) {
-  var eeMapOptions = {
-    getTileUrl: function(tile, zoom) {
-      var url = water.App.EE_URL + '/map/';
-      url += [eeMapId, zoom, tile.x, tile.y].join('/');
-      url += '?token=' + eeToken;
-      return url;
-    },
-    tileSize: new google.maps.Size(256, 256),
-	name: name,
-	opacity: 1.0
-  };
-  return new google.maps.ImageMapType(eeMapOptions);
-};
 
 /**
  * Creates a drawing manager for the passed-in map.
@@ -894,7 +975,34 @@ water.App.createDrawingManager = function(map) {
   });
   drawingManager.setMap(map);
   return drawingManager;
-};
+}
+
+water.App.setMapCoords = function(center, zoom) {
+	water.instance.map.panTo(center);
+	water.instance.map.setZoom(zoom);
+}
+
+water.App.prototype.loadSearchBox = function() {
+	var searchBox = new google.maps.places.Autocomplete(
+		(document.getElementById('searchbox')), {types:['geocode']}
+	);
+	searchBox.addListener('place_changed', function() {
+		var place = searchBox.getPlace();
+		if (!place.geometry) {
+			// User entered the name of a Place that was not suggested and
+			// pressed the Enter key, or the Place Details request failed.
+			//console.log("No location found for input: '" + place.name + "'");
+			return;
+		}
+		// If the place has a geometry, then present it on a map.
+		if (place.geometry.viewport) {
+			water.instance.map.fitBounds(place.geometry.viewport);
+		} else {
+			water.instance.map.setCenter(place.geometry.location);
+		}
+	});
+	return searchBox;
+}
 
 /** @type {string} The Earth Engine API URL. */
 water.App.EE_URL = 'https://earthengine.googleapis.com';
@@ -905,8 +1013,8 @@ water.App.DEFAULT_ZOOM = 7;
 /** @type {number} The max allowed zoom level for the map. */
 water.App.MAX_ZOOM = 14;
 
-/** @type {Object} The default center of the map. */
-water.App.DEFAULT_CENTER = {lng: 102.0, lat: 12.5};
+/** @type {object} The default center of the map. */
+water.App.DEFAULT_CENTER = {lng: 106.5, lat: 12.5};
 
 /** @type {string} The default date format. */
 water.App.DATE_FORMAT = 'yyyy-mm-dd';
@@ -925,3 +1033,109 @@ water.App.AREA_LIMIT_1 = 15000;
 
 /** @type {number} Hard limit on download area size. */
 water.App.AREA_LIMIT_2 = 20000;
+
+/** @type {object} List storing map layers that are loading. */
+water.App.LOADING_LAYERS = [];
+
+/** @type {boolean} stores whether the example with months slider is active. */
+water.App.EXAMPLE_MONTHS_ACTIVE = false;
+
+/** @type {object} The center of the map for different examples. */
+water.App.EXAMPLE_CENTER_1 = {lng: 105.5, lat: 11.65};
+water.App.EXAMPLE_CENTER_2 = {lng: 96.95, lat: 18.1};
+water.App.EXAMPLE_CENTER_3 = {lng: 100.5, lat: 15.1};
+water.App.EXAMPLE_CENTER_4 = {lng: 96.77, lat: 24.26};
+water.App.EXAMPLE_CENTER_5 = {lng: 104.6, lat: 12.81};
+
+/** @type {number} The zoom level for the map for different examples. */
+water.App.EXAMPLE_ZOOM_1 = 9;
+water.App.EXAMPLE_ZOOM_2 = 11;
+water.App.EXAMPLE_ZOOM_3 = 8;
+water.App.EXAMPLE_ZOOM_4 = 11;
+water.App.EXAMPLE_ZOOM_5 = 9;
+
+/** @type {object} The input parameters for different examples. */
+// default values
+water.App.DEFAULT_PARAMS = {
+	time_start: '2017-01-01',
+	time_end: '2017-12-31',
+	climatology: 0,
+	month_index: 1,
+	defringe: 0,
+	pcnt_perm: 40,
+	pcnt_temp: 8,
+	water_thresh: 0.3,
+	veg_thresh: 0.5,
+	hand_thresh: 50,
+	cloud_thresh: -1
+};
+// Permanent and temporary water
+water.App.EXAMPLE_PARAMS_1 = {
+	time_start: '2014-01-01',
+	time_end: '2014-12-31',
+	climatology: 0,
+	month_index: 1,
+	defringe: 0,
+	pcnt_perm: 40,
+	pcnt_temp: 8,
+	water_thresh: 0.3,
+	veg_thresh: 0.5,
+	hand_thresh: 50,
+	cloud_thresh: -1
+};
+// Reservoirs
+water.App.EXAMPLE_PARAMS_2 = {
+	time_start: '2008-01-01',
+	time_end: '2011-12-31',
+	climatology: 0,
+	month_index: 1,
+	defringe: 0,
+	pcnt_perm: 40,
+	pcnt_temp: 8,
+	water_thresh: 0.3,
+	veg_thresh: 0.6,
+	hand_thresh: 50,
+	cloud_thresh: -1
+};
+// Floods
+water.App.EXAMPLE_PARAMS_3 = {
+	time_start: '2011-02-01',
+	time_end: '2012-01-31',
+	climatology: 0,
+	month_index: 1,
+	defringe: 0,
+	pcnt_perm: 40,
+	pcnt_temp: 8,
+	water_thresh: 0.3,
+	veg_thresh: 0.6,
+	hand_thresh: 50,
+	cloud_thresh: -1
+};
+// River morphology / erosion
+water.App.EXAMPLE_PARAMS_4 = {
+	time_start: '2008-01-01',
+	time_end: '2017-12-31',
+	climatology: 0,
+	month_index: 1,
+	defringe: 0,
+	pcnt_perm: 50,
+	pcnt_temp: 8,
+	water_thresh: 0.3,
+	veg_thresh: 0.5,
+	hand_thresh: 50,
+	cloud_thresh: -1
+};
+// Seasonal inundation
+water.App.EXAMPLE_PARAMS_5 = {
+	time_start: '1988-01-01',
+	time_end: '2017-12-31',
+	climatology: 1,
+	month_index: 1,
+	defringe: 0,
+	pcnt_perm: 40,
+	pcnt_temp: 8,
+	water_thresh: 0.3,
+	veg_thresh: 0.5,
+	hand_thresh: 50,
+	cloud_thresh: -1
+};
