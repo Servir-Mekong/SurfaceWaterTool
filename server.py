@@ -50,10 +50,24 @@ class MainHandler(webapp2.RequestHandler):
 class GetBackgroundHandler(webapp2.RequestHandler):
     """Handles requests to load the background map upon loading the main web page."""
     def get(self):
-        AoI_mapid = ee.Image().byte().paint(AoI, 1000).getMapId()
+        AoI_mapid    = ee.Image().byte().paint(AoI, 1000).getMapId()
+        HAND_style = '\
+        <RasterSymbolizer>\
+          <ColorMap extended="true" >\
+            <ColorMapEntry color="#3288bd" quantity="0.0" label="-1"/>\
+            <ColorMapEntry color="#99d594" quantity="20.0" label="-1"/>\
+            <ColorMapEntry color="#e6f598" quantity="40.0" label="-1"/>\
+            <ColorMapEntry color="#fc8d59" quantity="60.0" label="-1"/>\
+            <ColorMapEntry color="#d53e4f" quantity="80.0" label="-1"/>\
+            <ColorMapEntry color="#ffffff" quantity="100.0" label="-1"/>\
+          </ColorMap>\
+        </RasterSymbolizer>'
+        HAND_mapid = ee.Image('users/arjenhaag/SERVIR-Mekong/HAND_MERIT').clip(AoI).sldStyle(HAND_style).getMapId()
         content = {
-            'eeMapId': AoI_mapid['mapid'],
-            'eeToken': AoI_mapid['token']
+            'AoImapId': AoI_mapid['mapid'],
+            'AoItoken': AoI_mapid['token'],
+            'HANDmapId': HAND_mapid['mapid'],
+            'HANDtoken': HAND_mapid['token']
         }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
@@ -62,7 +76,7 @@ class GetBackgroundHandler(webapp2.RequestHandler):
 class GetDefaultHandler(webapp2.RequestHandler):
     """Handles requests to load the default map upon loading the main web page."""
     def get(self):
-        default = SurfaceWaterToolStyle(ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_default_2017')).getMapId()
+        default = SurfaceWaterToolStyle(ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_default_2017_2')).getMapId()
         content = {
             'eeMapId': default['mapid'],
             'eeToken': default['token']
@@ -105,10 +119,10 @@ class GetExampleMapHandler(webapp2.RequestHandler):
         example_id  = self.request.params.get('example_id')
         # pre-calculated example maps
         EXAMPLES = {
-            'example_1': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_delta'),
-            'example_2': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_reservoir'),
-            'example_3': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_floods'),
-            'example_4': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_river')
+            'example_1': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_delta_2'),
+            'example_2': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_reservoir_2'),
+            'example_3': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_floods_2'),
+            'example_4': ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_river_2')
         }
         # get example map with matching id
         example_map = ee.Image(EXAMPLES[example_id])
@@ -125,7 +139,7 @@ class GetExampleMonthsHandler(webapp2.RequestHandler):
     """Handles requests to obtain mapId and token for each monthly map."""
     def get(self):
         # get example map
-        example_map = ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_months')
+        example_map = ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_example_months_2')
         # get content for each monthly image
         mapid_1  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('1')))).getMapId()
         mapid_2  = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('2')))).getMapId()
@@ -385,6 +399,7 @@ app = webapp2.WSGIApplication([
 
 # Geometries
 AoI        = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2hZl6o5-Ljw_Dglc4")
+#AoI        = ee.FeatureCollection("ft:1RUtGuo9OZU2IdLTICNc7iif4dxgOMIsvWoyPvPJa")
 Adm_bounds = ee.FeatureCollection("ft:1EoP3xf8FAI3ctTLSD7mqSmVR-ghuotnRR3eqtSKE")
 Tiles      = ee.FeatureCollection("ft:1MsfMsevkTAyPJswCXy-PFdmqBIE39Th8sn2yk1zu")
 
@@ -427,12 +442,7 @@ def SurfaceWaterToolAlgorithm(images, pcnt_perm, pcnt_temp, water_thresh, ndvi_t
     #return water_complete.updateMask(water_complete)
     return water_complete
 
-def SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh):
-    
-    # Height Above Nearest Drainage (HAND)
-    #HAND = ee.Image('users/gena/ServirMekong/SRTM_30_Asia_Mekong_hand')  # old/obsolete version, Mekong basin only (not complete countries)
-    HAND = ee.Image('users/gena/GlobalHAND/30m/hand-5000').clip(AoI)  # global version, clipped to AoI
-    HAND = HAND.where(HAND.lt(0), 1000)  # assign large value to strange horizontal lines (-99999), so it is masked unless user specifies a very large threshold
+def SurfaceWaterToolImages(time_start, time_end, climatology, month_index, defringe, cloud_thresh):
     
     # filter Landsat collections on bounds and dates
     L4 = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
@@ -523,6 +533,16 @@ def SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defri
     # filter on selected month
     if climatology == 'true':
         images = images.filter(ee.Filter.calendarRange(int(month_index), int(month_index), 'month'))
+    
+    return images
+
+def SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh):
+
+    # get images
+    images = SurfaceWaterToolImages(time_start, time_end, climatology, month_index, defringe, cloud_thresh)
+    
+    # Height Above Nearest Drainage (HAND)
+    HAND = ee.Image('users/arjenhaag/SERVIR-Mekong/HAND_MERIT').clip(AoI)
     
     # get HAND mask
     HAND_mask = HAND.gt(float(hand_thresh))

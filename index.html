@@ -65,7 +65,7 @@
 					$("#homebutton").click(function () {
 						$(".map").css("display", "block");
 						$(".ui").css("display", "block");
-						$(".legend-border").css("display", "block");
+						$(".legend").css("display", "block");
 						$("#examples").css("display", "none");
 						$("#about").css("display", "none");
 						$("#searchbox").css("display", "block");
@@ -75,7 +75,7 @@
 					$("#examplesbutton").click(function () {
 						$(".map").css("display", "none");
 						$(".ui").css("display", "none");
-						$(".legend-border").css("display", "none");
+						$(".legend").css("display", "none");
 						$("#about").css("display", "none");
 						$("#examples").css("display", "block");
 						$("#searchbox").css("display", "none");
@@ -85,7 +85,7 @@
 					$("#aboutbutton").click(function () {
 						$(".map").css("display", "none");
 						$(".ui").css("display", "none");
-						$(".legend-border").css("display", "none");
+						$(".legend").css("display", "none");
 						$("#examples").css("display", "none");
 						$("#about").css("display", "block");
 						$("#searchbox").css("display", "none");
@@ -116,7 +116,7 @@
 				function load_default() {
 					$(".map").css("display", "block");
 					$(".ui").css("display", "block");
-					$(".legend-border").css("display", "block");
+					$(".legend").css("display", "block");
 					$("#examples").css("display", "none");
 					$("#about").css("display", "none");
 					$(".months-slider").hide();
@@ -212,16 +212,20 @@
 				bands from the Landsat satellites that are sensitive to the occurrence of water. A threshold value is then applied at the pixel level to classify
 				water and non-water. Corrections are applied to improve results, reducing errors associated with falsely classified water over dark vegetation and
 				(hill) shadows. Dark vegetation is masked out using the Normalized Difference Vegetation Index (NDVI) and hill shadows are masked out using a
-				Height Above Nearest Drainage (HAND) map [Rennó et al., 2008], derived from the Shuttle Radar Topography Mission (SRTM) [Farr et al., 2007]
-				Digital Elevation Model (DEM). The various steps of the tool are shown in the figure below.</p>
+				Height Above Nearest Drainage (HAND) map [Rennó et al., 2008], derived from the Multi-Error-Removed Improved-Terrain (MERIT) Digital Elevation Model
+				(DEM) [Yamazaki et al., 2017]. The various steps of the tool are shown in the figure below.</p>
+				<img id="workflow_img" src="static/images/workflow.png">
 				<p>The resulting water maps are loaded into the web application and displayed on top of the background map. The map calculated from the 40th
 				percentile map represents permanent water (within the selected time period) and the map calculated from the 8th percentile map represents
 				temporary water. Permanent water mostly represents reservoirs, lakes and rivers (that did not change a lot over the selected time period).
 				Temporary water most often represents (seasonally) inundated land, such as wetlands, rice fields or fish ponds. It can also be an indication
 				of floods or changes in water bodies.</p>
+				<p>The following layers can be visualized using the tool:<br>
+				- background <i>(white background that can be used to more clearly see other layers)</i><br>
+				- HAND <i>(pre-calculated Height Above Nearest Drainge map)</i><br>
+				- water <i>(the final result; permanent and temporary water)</i></p>
 				<p>Please note that, due to the statistical nature of this method, the maps are asynchronous in time,
 				i.e. not each pixel is covered with water at the same time but these maps are an integration over the selected period.</p>
-				<img id="workflow_img" src="static/images/workflow.png">
 				<p>Relevant links:<br>
 				<a href="https://docs.google.com/document/d/1o7-XUNSVnMLT7VL9a2_7orv7APgiZz1kcPZIFrq9pBE" target="_blank" style="text-decoration:underline">User Guide</a><br>
 				<a href="https://docs.google.com/document/d/1ZoICFzjbiS_VpdbHyV1SdBPQdEoa_NfL-tAFLgXN9bw" target="_blank" style="text-decoration:underline">Background and verification</a><br>
@@ -234,18 +238,12 @@
 				funded by the EC FP7 project eartH2Observe (under grant agreement No 603608), which led to the publication of Donchyts et al. (2016), see below.</p>
 				<p>Application to the Mekong basin, which included testing, applying and adjusting thresholds, as well as further optimisation of the scripts
 				to fully take advantage of Google Earth Engine capabilities, was supported by the SERVIR-Mekong project. This also included the addition of
-				data from Landsat 4, 5 and 7. The development of the method to calculate the main supporting dataset (HAND) was fully supported by the
-				eartH2Observe project, but the application for the Mekong, as well as refinement for this area, was supported by the SERVIR-Mekong project.</p>
-				<p>The creation of the Google Appspot based online application was fully supported by the SERVIR-Mekong project. Processing support and
-				Google cloud storage needed to calculate the HAND product were supported by a grant from Google.</p>
-				<p>Landsat and SRTM data are made freely available by the U.S. Geological Survey (USGS) / National Aeronautics and Space Administration (NASA).
-				Both are accessed and processed in Google Earth Engine.</p>
+				data from Landsat 4, 5 and 7. The development of the method to calculate the HAND dataset was fully supported by the eartH2Observe project,
+				but the application for the Mekong, as well as refinement for this area, was supported by the SERVIR-Mekong project.</p>
+				<p>Landsat data is made freely available by the U.S. Geological Survey (USGS) and is both accessed and processed in Google Earth Engine.</p>
+				<p>The creation of the Google Appspot based online application was fully supported by the SERVIR-Mekong project.</p>
 				<hr>
 				<h1>References</h1>
-				<p>Farr, G., Rosen, P.A., Caro, E., Crippen, R., Duren, R., Hensley, S., Kobrick, M., Paller, M., Rodriguez, E., Roth, L., Seal, D., Shaffer, S.,
-				Shimada, J., Umland, J., Werner, M., Oskin, M., Burbank, D. & Alsdorf, D. (2007). The Shuttle Radar Topography Mission. Reviews of Geophysics,
-				45, RG2004. <a href="http://onlinelibrary.wiley.com/doi/10.1029/2005RG000183/full" target="_blank" style="text-decoration:underline">
-				doi:10.1029/2005RG000183</a>.</P>
 				<p>Gennadii, D., Schellekens, J., Winsemius, H., Eisemann, E. & van de Giesen, N. (2016). A 30 m Resolution Surface Water
 				Mask Including Estimation of Positional and Thematic Differences Using Landsat 8, SRTM and OpenStreetMap: A Case Study in the Murray-Darling
 				Basin, Australia. <a href="http://www.mdpi.com/2072-4292/8/5/386" target="_blank" style="text-decoration:underline">Remote Sensing, 8(5), 386</a>
@@ -258,9 +256,12 @@
 				International Journal of Remote Sensing, 27(14), 3025–3033.
 				<a href="http://doi.org/10.1080/01431160600589179" target="_blank" style="text-decoration:underline">
 				http://doi.org/10.1080/01431160600589179</a>.</P>
+				<p>Yamazaki D., D. Ikeshima, R. Tawatari, T. Yamaguchi, F. O'Loughlin, J.C. Neal, C.C. Sampson, S. Kanae & P.D. Bates. (2017). A high accuracy
+				map of global terrain elevations. Geophysical Research Letters, vol.44, pp.5844-5853. 
+				<a href="http://onlinelibrary.wiley.com/doi/10.1002/2017GL072874/full" target="_blank" style="text-decoration:underline">
+				doi: 10.1002/2017GL072874</a>.</p>
 				<p>Landsat images courtesy of the USGS: <a href="https://landsat.usgs.gov/" target="_blank" style="text-decoration:underline">https://landsat.usgs.gov/</a></p>
-				<p>SRTM (30m): <a href="https://www2.jpl.nasa.gov/srtm/" target="_blank" style="text-decoration:underline">https://www2.jpl.nasa.gov/srtm/</a></p>
-				<!--<p>MERIT DEM: <a href="" target="_blank" style="text-decoration:underline"></a></p>-->
+				<p>MERIT DEM: <a href="http://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_DEM/" target="_blank" style="text-decoration:underline">http://hydro.iis.u-tokyo.ac.jp/~yamadai/MERIT_DEM/</a></p>
 			 </div>
 	
 			<!-- The DOM of the application. -->
@@ -314,19 +315,12 @@
 									This application allows you to carry out live calculations using a sophisticated water detection algorithm for the SERVIR-Mekong region.
 									It is based on the algorithm described in <a href="http://www.mdpi.com/2072-4292/8/5/386" target="_blank" style="text-decoration:underline">this paper</a>.<br><br>
 									You can change the time period over which results are calculated and download the results for a region of your choosing.
-									If you are confident that you understand the implications, you can also check out the expert settings which give you greater control over the outcome of the algorithm.<br><br>
+									If you are confident that you understand the implications, you can also check out the other options which give you greater control over the outcome of the algorithm.<br><br>
 									Temporary water can, in certain cases, be seen as in indication of a flood. However, both permanent and temporary water are relative to the selected time period. For example,
 									if a long time period is chosen (e.g. 10 years), temporary water does not necessarily indicate a flood has occurred there, but it does show that water was detected there 
 									for some time within the selected period. To detect flooded water, it is advised to use a time period of 1 year or shorter.<br><br>
 									Please note that, because everything is calculated on-the-fly, it might take some time for results to load.
 									</span>
-									<script>
-									$(".demo-button").click(function () {
-										if ($(".demo-info").css("display") == "none") {
-											$(".demo-info").css("display", "block");
-										};
-									});
-									</script>
 								</div>
 							</h1>
 						</header>
@@ -361,6 +355,19 @@
 											return 'Opacity: ' + value;
 										}
 									});
+									</script>
+								</div>
+								<div class="map-layers-value" id="map-layers-hand">
+									<div id="checkboxHAND">
+										<input type="checkbox" value="None" id="checkbox-hand" title="Show/hide layer">
+										<script>
+										$('#checkbox-hand').tooltip();
+										</script>
+									</div>
+									<span>HAND</span>
+									<input id="handControl" data-slider-id='handControlSlider' type="text" data-slider-min="0" data-slider-max="1" data-slider-step="0.1" data-slider-value="1.0"/>
+									<script>
+									$('#handControl').slider({});
 									</script>
 								</div>
 								<div class="map-layers-value" id="map-layers-water">
@@ -562,7 +569,7 @@
 											<span>
 											The cloud threshold value controls when something is classified as a cloud, which will subsequently be removed from the analysis. This is done to reduce the impact of clouds on the algorithm.
 											The parameter can take a value between 0 and 100, or be turned off completely, by setting it to -1 (default). This parameter an effect on the percentile calculation, as cloud masking is carried out before that step. 
-											As such, changes in this parameter could permit the use of a different percentile value, and vice versa.<br>
+											As such, changes in this parameter could permit the use of a different percentile value, and vice versa.
 											</span>
 										</div>
 										<!-- toggle the info panel and make sure that it is not shown outside the screen -->
@@ -648,21 +655,81 @@
 					
 				</div>
 				
-				<!-- Legend (legend border is only used in the demo) -->
-				<div class="legend-border">
-					<div class="legend">
-						<div class="legend-text">
-							<span>Legend:</span>
+				<!-- Legend (legend border was used in demo, can be removed!) -->
+				<div class="legend">
+					<div class="legend-text">
+						<span>Legend</span>
+						<button class="legend-info-button btn btn-default btn-xs">i</button>
+						<div class="legend-info">
+							<span>
+							The legend clarifies the map layers. You can toggle between the water legend and HAND legend by clicking on their respective tabs.
+							The visualization of the layers themselves are handled in the control panel on the right.
+							</span>
 						</div>
+						<script>
+						$(".legend-info-button").click(function () {
+							$(".legend-info").toggleClass("legend-info-shown");
+						});
+						</script>
+					</div>
+					<div class="legend-tabs">
+						<button class="legend-tab" id="legend-tab-default" onClick="openLegendTab(event, 'water')">Water</button>
+						<button class="legend-tab" onClick="openLegendTab(event, 'hand')">HAND</button>
+					</div>
+					<div class="legend-line"></div>
+					<div id="legend-tab-water" class="legend-tab-content">
 						<div class="legend-value" id="legend-water-perm">
 							<div class="legend-block" style="background-color: #00008b;"></div>
-							<span>Permanent water</span>
+							<span>Permanent</span>
 						</div>
 						<div class="legend-value" id="legend-water-temp">
 							<div class="legend-block" style="background-color: #9999ff;"></div>
-							<span>Temporary water</span>
+							<span>Temporary</span>
 						</div>
 					</div>
+					<div id="legend-tab-hand" class="legend-tab-content">
+						<div class="legend-value" id="legend-hand-0">
+							<div class="legend-block" style="background-color: #3288bd;"></div>
+							<span>0 m</span>
+						</div>
+						<div class="legend-value" id="legend-hand-1">
+							<div class="legend-block" style="background-color: #99d594;"></div>
+							<span>20 m</span>
+						</div>
+						<div class="legend-value" id="legend-hand-2">
+							<div class="legend-block" style="background-color: #e6f598;"></div>
+							<span>40 m</span>
+						</div>
+						<div class="legend-value" id="legend-hand-3">
+							<div class="legend-block" style="background-color: #fc8d59;"></div>
+							<span>60 m</span>
+						</div>
+						<div class="legend-value" id="legend-hand-4">
+							<div class="legend-block" style="background-color: #d53e4f;"></div>
+							<span>80 m</span>
+						</div>
+						<div class="legend-value" id="legend-hand-5">
+							<div class="legend-block" style="background-color: #ffffff;"></div>
+							<span>100+ m</span>
+						</div>
+					</div>
+					<script>
+					function openLegendTab(event, name) {
+						tabcontent = document.getElementsByClassName("legend-tab-content");
+						for (i = 0; i < tabcontent.length; i++) {
+							tabcontent[i].style.display = "none";
+						}
+						tablinks = document.getElementsByClassName("legend-tab");
+						for (i = 0; i < tablinks.length; i++) {
+							tablinks[i].className = tablinks[i].className.replace(" active", "");
+						}
+						document.getElementById('legend-tab-' + name).style.display = "block";
+						event.currentTarget.className += " active";
+					}
+					$(document).ready(function() {
+						document.getElementById("legend-tab-default").click();
+					});
+					</script>
 				</div>
 				
 				<!-- Warning messages placeholder -->
