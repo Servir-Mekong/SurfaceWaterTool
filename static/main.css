@@ -259,7 +259,7 @@ footer {
 
 #workflow_img {
   width: 800px;
-  margin-top: 20px;
+  margin: 10px 0px;
   margin-left: 50px;
 }
 
@@ -294,7 +294,7 @@ footer {
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 430px;
+  width: 445px;
   z-index: 1;
 }
 
@@ -574,14 +574,23 @@ footer {
 /* Application Page Info Panels */
 /********************************/
 
-.water .general-info {
+.water .general-info,
+.water .legend-info,
+.water .climatology-info,
+.water .defringe-info,
+.water .percentile-info,
+.water .water-threshold-info,
+.water .veg-threshold-info,
+.water .hand-threshold-info,
+.water .cloud-threshold-info,
+.water .export-info {
   display: none;
 }
 
 .water .general-info-shown {
   display: inline;
   position: absolute;
-  right: 440px;
+  right: 455px;
   top: 7px;
   padding: 15px;
   margin-top: -5px;
@@ -595,14 +604,21 @@ footer {
   font-weight: normal;
 }
 
-.water .climatology-info,
-.water .defringe-info,
-.water .percentile-info,
-.water .water-threshold-info,
-.water .veg-threshold-info,
-.water .hand-threshold-info,
-.water .cloud-threshold-info {
-  display: none;
+.water .legend-info-shown {
+  display: inline;
+  position: absolute;
+  left: 158px;
+  bottom: 5px;
+  padding: 10px;
+  margin-bottom: -5px;
+  width: 380px;
+  border-radius: 2px;
+  background-color: white;
+  box-shadow: 0px 0px 5px gray;
+  overflow: auto;
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: normal;
 }
 
 .water .climatology-info-shown,
@@ -615,7 +631,7 @@ footer {
   display: block;
   position: fixed;
   top: 56%;
-  right: 450px;
+  right: 465px;
   transform: translate(0%, 0%);
   padding: 15px;
   width: 450px;
@@ -628,15 +644,11 @@ footer {
   z-index: 2;
 }
 
-.water .export-info {
-  display: none;
-}
-
 .water .export-info-shown {
   display: block;
   position: fixed;
   top: 56%;
-  right: 450px;
+  right: 465px;
   padding: 15px;
   margin-top: -5px;
   width: 450px;
@@ -675,13 +687,8 @@ footer {
   align-items:center;
 }
 
-.water #checkbox-aoi {
-  margin-left: 22px;
-  width: 20px;
-  height: 15px;
-  cursor: pointer;
-}
-
+.water #checkbox-aoi,
+.water #checkbox-hand,
 .water #checkbox-water {
   margin-left: 22px;
   width: 20px;
@@ -694,8 +701,9 @@ footer {
   width: 60px;
 }
 
-.water #aoiControlSlider .slider-selection {
-  background: #D3D3D3;
+.water #handControlSlider {
+  margin-left: 55px;
+  width: 60px;
 }
 
 .water #waterControlSlider {
@@ -703,51 +711,86 @@ footer {
   width: 60px;
 }
 
+.water #aoiControlSlider .slider-selection,
+.water #handControlSlider .slider-selection,
 .water #waterControlSlider .slider-selection {
   background: #D3D3D3;
+}
+
+.water #handControlSlider .tooltip {
+  display: none
 }
 
 /***************************/
 /* Application Page Legend */
 /***************************/
 
-.water .legend-border {
+.water .legend {
+  display: block;
   position: absolute;
   left: 10px;
   bottom: 10px;
-  border-style: solid;
-  border-color: none;
-  border-width: 0px;
-  margin: -2px;
-  z-index: 1;
-}
-
-.water .legend {
+  width: 143px;
   margin-top: 0px;
   padding: 6px 6px 1px 6px;
   background-color: white;
   border-radius: 2px;
   box-shadow: 0px 0px 5px gray;
+  z-index: 1;
 }
 
 .water .legend-text {
   font-weight: bold;
+  margin-left: 3px;
   margin-bottom: 5px;
+}
+
+.water .legend-info-button {
+  margin-left: 62px;
+}
+
+.water .legend-tabs {
+  overflow: hidden;
+  background-color: #ffffff;
+  padding-bottom: 8px;
+}
+
+.water .legend-tabs  button{
+  background-color: inherit;
+  border: none;
+  border-bottom: 1px solid #ccc;
+  outline: none;
+  cursor: pointer;
+  padding: 10px 16px;
+  margin-right: -3px;
+  transition: 0.3s;
+  font-size: 12px;
+}
+
+.water .legend-tabs button.active {
+  border: 1px solid #ccc;
+  border-bottom: none;
+  font-weight: bold;
+}
+
+.water .legend-tab-content {
+  display: none;
+  padding: 0px 6px;
 }
 
 .water .legend-value {
   font-size: 12px;
-  margin-bottom:10px;
-  display:flex;
-  align-items:center;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
 }
 
 .water .legend-block {
-  min-width:40px;
-  height:20px;
-  margin-right:10px;
-  border:#bbb solid 1px;
-  background-color:#D3D3D3;
+  min-width: 40px;
+  height: 20px;
+  margin-right: 10px;
+  border: #bbb solid 1px;
+  background-color: #D3D3D3;
 }
 
 /*****************************/

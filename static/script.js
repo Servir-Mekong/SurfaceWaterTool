@@ -33,6 +33,7 @@ water.App = function() {
   //(used to prevent reloading when requested layer is the same)
   this.currentLayer = {};
 	this.aoiParams = {};
+	this.handParams = {};
 	this.waterParams = {};
   
    // initialize the UI components
@@ -80,14 +81,22 @@ water.App.createMap = function() {
 
 // Load background map upon loading the main web page
 water.App.prototype.loadBackground = function() {
-  var name = 'AoI';
   $.ajax({
     url: "/get_background",
     dataType: "json",
     success: function (data) {
-		water.instance.aoiParams = {'mapId': data.eeMapId, 'token': data.eeToken};
-	  water.instance.showBackground(data.eeMapId, data.eeToken, name, 0);
-	  water.instance.setLayerOpacity('AoI', parseFloat($("#aoiControl").val()));
+			// AoI
+			water.instance.aoiParams = {'mapId': data.AoImapId, 'token': data.AoItoken};
+			if ($('#checkbox-aoi').is(':checked')){
+				water.instance.showBackground(data.AoImapId, data.AoItoken, 'AoI', water.App.Z_INDEX_AOI);
+				water.instance.setLayerOpacity('AoI', parseFloat($("#aoiControl").val()));
+			}
+			// HAND
+			water.instance.handParams = {'mapId': data.HANDmapId, 'token': data.HANDtoken};
+			if ($('#checkbox-hand').is(':checked')){
+				water.instance.showBackground(data.HANDmapId, data.HANDtoken, 'hand', water.App.Z_INDEX_HAND);
+				water.instance.setLayerOpacity('hand', parseFloat($("#handControl").val()));
+			}
     },
     error: function (data) {
       console.log(data.responseText);
@@ -101,13 +110,12 @@ water.App.prototype.loadDefault = function() {
   //var params        = this.getAllParams();
 	//this.currentLayer = params;
 	// set map layer
-  var name = 'water';
   $.ajax({
     url: "/get_default",
     dataType: "json",
     success: function (data) {
 			water.instance.waterParams = {'mapId': data.eeMapId, 'token': data.eeToken};
-			water.instance.setWaterMap(data.eeMapId, data.eeToken, name, 2);
+			water.instance.setWaterMap(data.eeMapId, data.eeToken, 'water', water.App.Z_INDEX_WATER);
     },
     error: function (data) {
       console.log(data.responseText);
@@ -232,7 +240,7 @@ water.App.prototype.updateSlider = function() {
 		var month_data = water.instance.exampleParams[month];
 		// update map using pre-calculated example
 		water.instance.waterParams = {'mapId': month_data.eeMapId, 'token': month_data.eeToken};
-		water.instance.setWaterMap(month_data.eeMapId, month_data.eeToken, 'water', 2);
+		water.instance.setWaterMap(month_data.eeMapId, month_data.eeToken, 'water', water.App.Z_INDEX_WATER);
 	} else {
 		// update map with new calculation
 		this.refreshImage();
@@ -241,8 +249,6 @@ water.App.prototype.updateSlider = function() {
 
 // Updates the image based on the current control panel config.
 water.App.prototype.refreshImage = function() {
-  
-  var name = 'water';
   
   // obtain params
   var params = this.getAllParams();
@@ -278,8 +284,8 @@ water.App.prototype.refreshImage = function() {
 	$('.warnings span').text('')
 	$('.warnings').hide();
 	
-  // remove map layers
-	this.removeLayer(name);
+  // remove map layer(s)
+	this.removeLayer('water');
 	
 	// add climatology slider if required
 	if (params['climatology'] == true) {
@@ -288,14 +294,17 @@ water.App.prototype.refreshImage = function() {
 	  $(".months-slider").hide();
 	};
 	
-	// query new map
+	// query new map(s)
 	$.ajax({
 		url: "/get_water_map",
 		data: params,
 		dataType: "json",
 		success: function (data) {
 			water.instance.waterParams = {'mapId': data.eeMapId, 'token': data.eeToken};
-			water.instance.setWaterMap(data.eeMapId, data.eeToken, name, 2);
+			if ($('#checkbox-water').is(':checked')){
+				water.instance.setWaterMap(data.eeMapId, data.eeToken, 'water', water.App.Z_INDEX_WATER);
+				water.instance.setLayerOpacity('water', parseFloat($("#waterControl").val()));
+			}
 		},
 		error: function (data) {
 			console.log(data.responseText);
@@ -362,9 +371,13 @@ water.App.prototype.setLayerOpacity = function(name, value) {
  water.App.prototype.toggleLayer = function(name, toggle) {
 	if (toggle) {
 		if (name == 'water') {
-			this.setWaterMap(this.waterParams.mapId, this.waterParams.token, 'water', 2);
+			this.setWaterMap(this.waterParams.mapId, this.waterParams.token, 'water', water.App.Z_INDEX_WATER);
+			water.instance.setLayerOpacity('water', parseFloat($("#waterControl").val()));
+		} else if (name == 'hand') {
+			this.showBackground(this.handParams.mapId, this.handParams.token, 'hand', water.App.Z_INDEX_HAND);
+			water.instance.setLayerOpacity('hand', parseFloat($("#handControl").val()));
 		} else if (name == 'AoI') {
-			this.showBackground(this.aoiParams.mapId, this.aoiParams.token, 'AoI', 0);
+			this.showBackground(this.aoiParams.mapId, this.aoiParams.token, 'AoI', water.App.Z_INDEX_AOI);
 			water.instance.setLayerOpacity('AoI', parseFloat($("#aoiControl").val()));
 		}
 	} else {
@@ -380,6 +393,9 @@ water.App.prototype.toggleBoxes = function() {
 	$('#checkbox-aoi').on("change", function() {
 		water.instance.toggleLayer('AoI', this.checked);
 	});
+	$('#checkbox-hand').on("change", function() {
+		water.instance.toggleLayer('hand', this.checked);
+	});
 	$('#checkbox-water').on("change", function() {
 		water.instance.toggleLayer('water', this.checked);
 	});
@@ -391,6 +407,12 @@ water.App.prototype.opacitySliders = function() {
   });
   $("#aoiControl").on("slideStop", function(slideEvt) {
 		water.instance.setLayerOpacity('AoI', slideEvt.value);
+  });
+	$("#handControl").on("slide", function(slideEvt) {
+		water.instance.setLayerOpacity('hand', slideEvt.value);
+  });
+  $("#handControl").on("slideStop", function(slideEvt) {
+		water.instance.setLayerOpacity('hand', slideEvt.value);
   });
   $("#waterControl").on("slide", function(slideEvt) {
 		water.instance.setLayerOpacity('water', slideEvt.value);
@@ -504,7 +526,7 @@ water.App.prototype.initRegionPicker = function() {
 							data: params,
 							dataType: "json",
 							success: function (data) {
-								water.instance.showMap(data.eeMapId, data.eeToken, name, 4 + nr_selected - 1);
+								water.instance.showMap(data.eeMapId, data.eeToken, name, water.App.Z_INDEX_POLY + nr_selected - 1);
 								$('.export').attr('disabled', false);
 								//water.instance.point = params;
 								water.instance.points.push(params);
@@ -531,7 +553,7 @@ water.App.prototype.initRegionPicker = function() {
 						data: params,
 						dataType: "json",
 						success: function (data) {
-							water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
+							water.instance.showMap(data.eeMapId, data.eeToken, name, water.App.Z_INDEX_POLY);
 							$('.export').attr('disabled', false);
 							//water.instance.point = params;
 							water.instance.points.push(params);
@@ -548,7 +570,7 @@ water.App.prototype.initRegionPicker = function() {
 						data: params,
 						dataType: "json",
 						success: function (data) {
-							water.instance.showMap(data.eeMapId, data.eeToken, name, 4);
+							water.instance.showMap(data.eeMapId, data.eeToken, name, water.App.Z_INDEX_POLY);
 							//console.log(data.size);
 							if (data.size > water.App.AREA_LIMIT_2) {
 								$('.export').attr('disabled', true);
@@ -882,7 +904,7 @@ water.App.prototype.loadExample = function(example_id) {
 	// handle visualization of app components
 	$(".map").css("display", "block");
 	$(".ui").css("display", "block");
-	$(".legend-border").css("display", "block");
+	$(".legend").css("display", "block");
 	$("#examples").css("display", "none");
 	$("#about").css("display", "none");
 	$(".months-slider").hide();
@@ -920,7 +942,7 @@ water.App.prototype.loadExample = function(example_id) {
 			dataType: "json",
 			success: function (data) {
 				water.instance.waterParams = {'mapId': data.eeMapId, 'token': data.eeToken};
-				water.instance.setWaterMap(data.eeMapId, data.eeToken, 'water', 2);
+				water.instance.setWaterMap(data.eeMapId, data.eeToken, 'water', water.App.Z_INDEX_WATER);
 			},
 			error: function (data) {
 				console.log(data.responseText);
@@ -935,7 +957,7 @@ water.App.prototype.loadExample = function(example_id) {
 				$(".months-slider").show();
 				water.instance.exampleParams = data;
 				water.instance.waterParams = {'mapId': data[1].eeMapId, 'token': data[1].eeToken};
-				water.instance.setWaterMap(data[1].eeMapId, data[1].eeToken, 'water', 2);
+				water.instance.setWaterMap(data[1].eeMapId, data[1].eeToken, 'water', water.App.Z_INDEX_WATER);
 				water.instance.removeLoadingLayer('example');
 			},
 			error: function (data) {
@@ -1018,6 +1040,14 @@ water.App.DEFAULT_CENTER = {lng: 106.5, lat: 12.5};
 
 /** @type {string} The default date format. */
 water.App.DATE_FORMAT = 'yyyy-mm-dd';
+
+/** @type {number} The z-index of map layers. */
+water.App.Z_INDEX_AOI = 0;
+water.App.Z_INDEX_HAND = 1;
+water.App.Z_INDEX_PCNT = 2;
+water.App.Z_INDEX_CLOUD = 3;
+water.App.Z_INDEX_WATER = 4;
+water.App.Z_INDEX_POLY  = 5;
 
 /** @type {number} The minimum allowed time period in days. */
 water.App.MINIMUM_TIME_PERIOD_REGULAR = 90;
