@@ -22,7 +22,7 @@ Application to the Mekong basin, which included testing, applying and adjusting 
 
 Landsat data is made freely available by the U.S. Geological Survey (USGS) and is both accessed and processed in Google Earth Engine.
 
-The creation of this Google Appspot based online application was fully supported by the SERVIR-Mekong project.
+The creation of the Google Appspot based online application was fully supported by the SERVIR-Mekong project.
 
 # References
 <a href="http://www.mdpi.com/2072-4292/8/5/386">Gennadii, D., Schellekens, J., Winsemius, H., Eisemann, E. & van de Giesen, N. (2016). A 30 m Resolution Surface Water Mask Including Estimation of Positional and Thematic Differences Using Landsat 8, SRTM and OpenStreetMap: A Case Study in the Murray-Darling Basin, Australia. Remote Sensing, 8(5), 386.</a>
