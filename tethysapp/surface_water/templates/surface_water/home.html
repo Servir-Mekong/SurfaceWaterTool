@@ -1,0 +1,30 @@
+{% extends "surface_water/base.html" %}
+{% load tethys_gizmos staticfiles %}
+
+{% block header_buttons %}
+  <div class="header-button glyphicon-button" data-toggle="tooltip" data-placement="bottom" title="Help">
+    <a data-toggle="modal" data-target="#help-modal"><span class="glyphicon glyphicon-question-sign"></span></a>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ block.super }}
+    <script src="{% static 'surface_water/js/map.js' %}" type="text/javascript"></script>
+{% endblock %}
+
+{% block app_navigation_items %}
+  {% gizmo start_date_gizmo %}
+  {% gizmo end_date_gizmo %}
+  {% gizmo update_map %}
+{% endblock %}
+
+{% block app_content %}
+    {% gizmo map_view %}
+    <div id='water_layer' name='water_layer' water_map_url='{{ water_map_url }}' style='display:none'></div>
+    <div id='hand_layer' name='hand_layer' hand_map_url='{{ hand_map_url }}' style='display:none'></div>
+{% endblock %}
+
+{% block content_dependent_styles %}
+  {{ block.super }}
+  <link href="{% static 'surface_water/css/map.css' %}" rel="stylesheet"/>
+{% endblock %}
