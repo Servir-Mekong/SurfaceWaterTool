@@ -20,6 +20,12 @@ from google.appengine.api import urlfetch
 # Initialization
 # ------------------------------------------------------------------------------------ #
 
+# Memcache is used to avoid exceeding our EE quota. Entries in the cache expire
+# 24 hours after they are added. See:
+# https://cloud.google.com/appengine/docs/python/memcache/
+MEMCACHE_EXPIRATION = 60 * 60 * 24
+
+
 # The URL fetch timeout time (seconds).
 URL_FETCH_TIMEOUT = 60
 
@@ -398,10 +404,10 @@ app = webapp2.WSGIApplication([
 # ------------------------------------------------------------------------------------ #
 
 # Geometries
-AoI        = ee.FeatureCollection("ft:1nrjAesEg6hU_R7bt76AlNDN2hZl6o5-Ljw_Dglc4")
+AoI        = ee.FeatureCollection("projects/servir-mekong/SWMT/AoI")
 #AoI        = ee.FeatureCollection("ft:1RUtGuo9OZU2IdLTICNc7iif4dxgOMIsvWoyPvPJa")
-Adm_bounds = ee.FeatureCollection("ft:1EoP3xf8FAI3ctTLSD7mqSmVR-ghuotnRR3eqtSKE")
-Tiles      = ee.FeatureCollection("ft:1MsfMsevkTAyPJswCXy-PFdmqBIE39Th8sn2yk1zu")
+Adm_bounds = ee.FeatureCollection("projects/servir-mekong/SWMT/Adm_bounds")
+Tiles      = ee.FeatureCollection("projects/servir-mekong/SWMT/Tiles")
 
 # Landsat band names
 LC457_BANDS = ['B1',    'B1',   'B2',    'B3',  'B4',  'B5',    'B7']
@@ -421,35 +427,35 @@ def SurfaceWaterToolAlgorithm(images, pcnt_perm, pcnt_temp, water_thresh, ndvi_t
     # water
     water_perm = MNDWI_perm.gt(float(water_thresh))
     water_temp = MNDWI_temp.gt(float(water_thresh))
-    
+
     # get NDVI masks
     NDVI_perm_pcnt = prcnt_img_perm.normalizedDifference(['nir', 'red'])
     NDVI_temp_pcnt = prcnt_img_temp.normalizedDifference(['nir', 'red'])
     NDVI_mask_perm = NDVI_perm_pcnt.gt(float(ndvi_thresh))
     NDVI_mask_temp = NDVI_temp_pcnt.gt(float(ndvi_thresh))
-    
+
     # combined NDVI and HAND masks
     full_mask_perm = NDVI_mask_perm.add(hand_mask)
     full_mask_temp = NDVI_mask_temp.add(hand_mask)
-    
+
     # apply NDVI and HAND masks
     water_perm_masked = water_perm.updateMask(full_mask_perm.Not())
     water_temp_masked = water_temp.updateMask(full_mask_perm.Not())
-    
+
     # single image with permanent and temporary water
     water_complete = water_perm_masked.add(water_temp_masked).clip(AoI)
-    
+
     #return water_complete.updateMask(water_complete)
     return water_complete
 
 def SurfaceWaterToolImages(time_start, time_end, climatology, month_index, defringe, cloud_thresh):
-    
+
     # filter Landsat collections on bounds and dates
     L4 = ee.ImageCollection('LANDSAT/LT04/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
     L5 = ee.ImageCollection('LANDSAT/LT05/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
     L7 = ee.ImageCollection('LANDSAT/LE07/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
     L8 = ee.ImageCollection('LANDSAT/LC08/C01/T1_TOA').filterBounds(AoI).filterDate(time_start, ee.Date(time_end).advance(1, 'day'))
-    
+
     # apply cloud masking
     if int(cloud_thresh) >= 0:
         # helper function: cloud busting
@@ -464,13 +470,13 @@ def SurfaceWaterToolImages(time_start, time_end, climatology, month_index, defri
         L5 = L5.map(bustClouds)
         L7 = L7.map(bustClouds)
         L8 = L8.map(bustClouds)
-    
+
     # select bands and rename
     L4 = L4.select(LC457_BANDS, STD_NAMES)
     L5 = L5.select(LC457_BANDS, STD_NAMES)
     L7 = L7.select(LC457_BANDS, STD_NAMES)
     L8 = L8.select(LC8_BANDS, STD_NAMES)
-    
+
     # apply defringing
     if defringe == 'true':
         # helper function: defringe Landsat 5 and/or 7
@@ -526,29 +532,29 @@ def SurfaceWaterToolImages(time_start, time_end, climatology, month_index, defri
             return img
         L5 = L5.map(defringeLandsat)
         L7 = L7.map(defringeLandsat)
-    
+
     # merge collections
     images = ee.ImageCollection(L4.merge(L5).merge(L7).merge(L8))
-    
+
     # filter on selected month
     if climatology == 'true':
         images = images.filter(ee.Filter.calendarRange(int(month_index), int(month_index), 'month'))
-    
+
     return images
 
 def SurfaceWaterToolUpdate(time_start, time_end, climatology, month_index, defringe, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, hand_thresh, cloud_thresh):
 
     # get images
     images = SurfaceWaterToolImages(time_start, time_end, climatology, month_index, defringe, cloud_thresh)
-    
+
     # Height Above Nearest Drainage (HAND)
     HAND = ee.Image('users/arjenhaag/SERVIR-Mekong/HAND_MERIT').clip(AoI)
-    
+
     # get HAND mask
     HAND_mask = HAND.gt(float(hand_thresh))
-    
+
     water = SurfaceWaterToolAlgorithm(images, pcnt_perm, pcnt_temp, water_thresh, ndvi_thresh, HAND_mask)
-    
+
     return water.updateMask(water)
 
 def SurfaceWaterToolStyle(map):

@@ -3,10 +3,10 @@
 
 
 
+import six  # For Python 2/3 compatibility
+
 import unittest
-
 import ee
-
 from ee import apitestcase
 
 
@@ -16,8 +16,8 @@ class ComputedObjectTest(apitestcase.ApiTestCase):
     """Verifies that untyped calls wrap the result in a ComputedObject."""
 
     result = ee.ApiFunction.call_('DateRange', 1, 2)
-    self.assertTrue(isinstance(result.serialize(), basestring))
-    self.assertEquals({'value': 'fakeValue'}, result.getInfo())
+    self.assertTrue(isinstance(result.serialize(), six.string_types))
+    self.assertEqual({'value': 'fakeValue'}, result.getInfo())
 
   def testInternals(self):
     """Test eq(), ne() and hash()."""
@@ -25,11 +25,11 @@ class ComputedObjectTest(apitestcase.ApiTestCase):
     b = ee.ApiFunction.call_('DateRange', 2, 3)
     c = ee.ApiFunction.call_('DateRange', 1, 2)
 
-    self.assertEquals(a, a)
-    self.assertNotEquals(a, b)
-    self.assertEquals(a, c)
-    self.assertNotEquals(b, c)
-    self.assertNotEquals(hash(a), hash(b))
+    self.assertEqual(a, a)
+    self.assertNotEqual(a, b)
+    self.assertEqual(a, c)
+    self.assertNotEqual(b, c)
+    self.assertNotEqual(hash(a), hash(b))
 
 
 if __name__ == '__main__':

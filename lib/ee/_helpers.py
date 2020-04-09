@@ -8,19 +8,19 @@ referenced from there (e.g. "ee.profilePrinting").
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
 
-# pylint: disable=g-bad-import-order
 import contextlib
 import json
-import six
 import sys
-
-import oauth2client.client
-
+# pylint: disable=g-importing-member
 from . import data
 from . import oauth
-
 from .apifunction import ApiFunction
 from .ee_exception import EEException
+# pylint: enable=g-importing-member
+import six
+from google.auth import crypt
+from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 
 
 def _GetPersistentCredentials():
@@ -34,9 +34,13 @@ def _GetPersistentCredentials():
   try:
     tokens = json.load(open(oauth.get_credentials_path()))
     refresh_token = tokens['refresh_token']
-    return oauth2client.client.OAuth2Credentials(
-        None, oauth.CLIENT_ID, oauth.CLIENT_SECRET, refresh_token,
-        None, 'https://accounts.google.com/o/oauth2/token', None)
+    return Credentials(
+        None,
+        refresh_token=refresh_token,
+        token_uri=oauth.TOKEN_URI,
+        client_id=oauth.CLIENT_ID,
+        client_secret=oauth.CLIENT_SECRET,
+        scopes=oauth.SCOPES)
   except IOError:
     raise EEException('Please authorize access to your Earth Engine account '
                       'by running\n\nearthengine authenticate\n\nin your '
@@ -48,17 +52,39 @@ def ServiceAccountCredentials(email, key_file=None, key_data=None):
 
   Args:
     email: The email address of the account for which to configure credentials.
+        Ignored if key_file or key_data represents a JSON service account key.
     key_file: The path to a file containing the private key associated with
-        the service account.
+        the service account. Both JSON and PEM files are supported.
     key_data: Raw key data to use, if key_file is not specified.
 
   Returns:
     An OAuth2 credentials object.
   """
+
+  # Assume anything that doesn't end in '.pem' is a JSON key.
+  if key_file and not key_file.endswith('.pem'):
+    return service_account.Credentials.from_service_account_file(
+        key_file, scopes=oauth.SCOPES)
+
+  # If 'key_data' can be decoded as JSON, it's probably a raw JSON key.
+  if key_data:
+    try:
+      key_data = json.loads(key_data)
+      return service_account.Credentials.from_service_account_info(
+          key_data, scopes=oauth.SCOPES)
+    except ValueError:
+      # It may actually be a raw PEM string, we'll try that below.
+      pass
+
+  # Probably a PEM key - just read the file into 'key_data'.
   if key_file:
-    key_data = open(key_file, 'rb').read()
-  return oauth2client.client.SignedJwtAssertionCredentials(
-      email, key_data, oauth.SCOPE)
+    with open(key_file, 'r') as file_:
+      key_data = file_.read()
+
+  # Raw PEM key.
+  signer = crypt.RSASigner.from_string(key_data)
+  return service_account.Credentials(
+      signer, email, oauth.TOKEN_URI, scopes=oauth.SCOPES)
 
 
 def call(func, *args, **kwargs):
@@ -119,9 +145,10 @@ def profilePrinting(destination=sys.stderr):
   # that.
   getProfiles = ApiFunction.lookup('Profile.getProfiles')
 
-  profileIds = []
+  profile_ids = []
   try:
-    with data.profiling(profileIds.append):
+    with data.profiling(profile_ids.append):
       yield
   finally:
-    destination.write(getProfiles.call(ids=profileIds).getInfo())
+    profile_text = getProfiles.call(ids=profile_ids).getInfo()
+    destination.write(profile_text)

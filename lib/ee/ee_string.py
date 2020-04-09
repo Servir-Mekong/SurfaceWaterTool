@@ -3,9 +3,12 @@
 
 
 
-import apifunction
-import computedobject
-import ee_exception
+# pylint: disable=g-bad-import-order
+import six  # For Python 2/3 compatibility
+
+from . import apifunction
+from . import computedobject
+from . import ee_exception
 
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
@@ -19,7 +22,7 @@ class String(computedobject.ComputedObject):
   def __init__(self, string):
     """Construct a string wrapper.
 
-    This constuctor accepts the following args:
+    This constructor accepts the following args:
       1) A bare string.
       2) A ComputedObject returning a string.
 
@@ -28,7 +31,7 @@ class String(computedobject.ComputedObject):
     """
     self.initialize()
 
-    if isinstance(string, basestring):
+    if isinstance(string, six.string_types):
       super(String, self).__init__(None, None)
     elif isinstance(string, computedobject.ComputedObject):
       if string.func and string.func.getSignature()['returns'] == 'String':
@@ -61,7 +64,13 @@ class String(computedobject.ComputedObject):
     return 'String'
 
   def encode(self, opt_encoder=None):
-    if isinstance(self._string, basestring):
+    if isinstance(self._string, six.string_types):
       return self._string
     else:
       return self._string.encode(opt_encoder)
+
+  def encode_cloud_value(self, opt_encoder=None):
+    if isinstance(self._string, six.string_types):
+      return {'constantValue': self._string}
+    else:
+      return self._string.encode_cloud_value(opt_encoder)

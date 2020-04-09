@@ -6,17 +6,19 @@
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
 
+# pylint: disable=g-bad-import-order
 import json
 import numbers
+import six
 
-import apifunction
-import computedobject
-import customfunction
-import ee_date
-import ee_exception
-import encodable
-import function
-import geometry
+from . import apifunction
+from . import computedobject
+from . import customfunction
+from . import ee_date
+from . import ee_exception
+from . import encodable
+from . import function
+from . import geometry
 
 
 def fromJSON(json_obj):
@@ -58,7 +60,7 @@ def decode(json_obj):
 def _decodeValue(json_obj, named_values):
   """Decodes an object previously encoded using the EE API v2 (DAG) format.
 
-  This uses a provided scopre for ValueRef lookup and does not not allow the
+  This uses a provided scope for ValueRef lookup and does not not allow the
   input to be a CompoundValue.
 
   Args:
@@ -71,7 +73,7 @@ def _decodeValue(json_obj, named_values):
 
   # Check for primitive values.
   if (json_obj is None or
-      isinstance(json_obj, (bool, numbers.Number, basestring))):
+      isinstance(json_obj, (bool, numbers.Number, six.string_types))):
     return json_obj
 
   # Check for array values.
@@ -91,7 +93,7 @@ def _decodeValue(json_obj, named_values):
       raise ee_exception.EEException('Unknown ValueRef: ' + json_obj)
   elif type_name == 'ArgumentRef':
     var_name = json_obj['value']
-    if not isinstance(var_name, basestring):
+    if not isinstance(var_name, six.string_types):
       raise ee_exception.EEException('Invalid variable name: ' + var_name)
     return customfunction.CustomFunction.variable(None, var_name)  # pylint: disable=protected-access
   elif type_name == 'Date':
@@ -109,7 +111,7 @@ def _decodeValue(json_obj, named_values):
     else:
       func = _decodeValue(json_obj['function'], named_values)
     args = dict((key, _decodeValue(value, named_values))
-                for (key, value) in json_obj['arguments'].iteritems())
+                for (key, value) in json_obj['arguments'].items())
     if isinstance(func, function.Function):
       return func.apply(args)
     elif isinstance(func, computedobject.ComputedObject):
@@ -118,10 +120,10 @@ def _decodeValue(json_obj, named_values):
       return computedobject.ComputedObject(func, args)
     else:
       raise ee_exception.EEException(
-          'Invalid function value: ' + json_obj['function'])
+          'Invalid function value: %s' % json_obj['function'])
   elif type_name == 'Dictionary':
     return dict((key, _decodeValue(value, named_values))
-                for (key, value) in json_obj['value'].iteritems())
+                for (key, value) in json_obj['value'].items())
   elif type_name == 'Function':
     body = _decodeValue(json_obj['body'], named_values)
     signature = {

@@ -29,20 +29,13 @@ from google.appengine.api import memcache
 from google.appengine.api import users
 from google.appengine.ext import db
 from google.appengine.ext.webapp.util import login_required
-import httplib2
 import webapp2 as webapp
 
+import oauth2client
+from oauth2client import _helpers
+from oauth2client import client
 from oauth2client import clientsecrets
-from oauth2client import GOOGLE_AUTH_URI
-from oauth2client import GOOGLE_REVOKE_URI
-from oauth2client import GOOGLE_TOKEN_URI
-from oauth2client import util
-from oauth2client.client import AccessTokenRefreshError
-from oauth2client.client import AssertionCredentials
-from oauth2client.client import Credentials
-from oauth2client.client import Flow
-from oauth2client.client import OAuth2WebServerFlow
-from oauth2client.client import Storage
+from oauth2client import transport
 from oauth2client.contrib import xsrfutil
 
 # This is a temporary fix for a Google internal issue.
@@ -51,8 +44,6 @@ try:
 except ImportError:  # pragma: NO COVER
     _appengine_ndb = None
 
-
-__author__ = 'jcgregorio@google.com (Joe Gregorio)'
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +116,7 @@ def xsrf_secret_key():
     return str(secret)
 
 
-class AppAssertionCredentials(AssertionCredentials):
+class AppAssertionCredentials(client.AssertionCredentials):
     """Credentials object for App Engine Assertion Grants
 
     This object will allow an App Engine application to identify itself to
@@ -138,7 +129,7 @@ class AppAssertionCredentials(AssertionCredentials):
     information to generate and refresh its own access tokens.
     """
 
-    @util.positional(2)
+    @_helpers.positional(2)
     def __init__(self, scope, **kwargs):
         """Constructor for AppAssertionCredentials
 
@@ -150,7 +141,7 @@ class AppAssertionCredentials(AssertionCredentials):
                                 or unspecified, the default service account for
                                 the app is used.
         """
-        self.scope = util.scopes_to_string(scope)
+        self.scope = _helpers.scopes_to_string(scope)
         self._kwargs = kwargs
         self.service_account_id = kwargs.get('service_account_id', None)
         self._service_account_email = None
@@ -164,17 +155,15 @@ class AppAssertionCredentials(AssertionCredentials):
         data = json.loads(json_data)
         return AppAssertionCredentials(data['scope'])
 
-    def _refresh(self, http_request):
-        """Refreshes the access_token.
+    def _refresh(self, http):
+        """Refreshes the access token.
 
         Since the underlying App Engine app_identity implementation does its
         own caching we can skip all the storage hoops and just to a refresh
         using the API.
 
         Args:
-            http_request: callable, a callable that matches the method
-                          signature of httplib2.Http.request, used to make the
-                          refresh request.
+            http: unused HTTP object
 
         Raises:
             AccessTokenRefreshError: When the refresh fails.
@@ -184,7 +173,7 @@ class AppAssertionCredentials(AssertionCredentials):
             (token, _) = app_identity.get_access_token(
                 scopes, service_account_id=self.service_account_id)
         except app_identity.Error as e:
-            raise AccessTokenRefreshError(str(e))
+            raise client.AccessTokenRefreshError(str(e))
         self.access_token = token
 
     @property
@@ -235,7 +224,7 @@ class FlowProperty(db.Property):
     """
 
     # Tell what the user type is.
-    data_type = Flow
+    data_type = client.Flow
 
     # For writing to datastore.
     def get_value_for_datastore(self, model_instance):
@@ -250,7 +239,7 @@ class FlowProperty(db.Property):
         return pickle.loads(value)
 
     def validate(self, value):
-        if value is not None and not isinstance(value, Flow):
+        if value is not None and not isinstance(value, client.Flow):
             raise db.BadValueError(
                 'Property {0} must be convertible '
                 'to a FlowThreeLegged instance ({1})'.format(self.name, value))
@@ -268,7 +257,7 @@ class CredentialsProperty(db.Property):
     """
 
     # Tell what the user type is.
-    data_type = Credentials
+    data_type = client.Credentials
 
     # For writing to datastore.
     def get_value_for_datastore(self, model_instance):
@@ -289,7 +278,7 @@ class CredentialsProperty(db.Property):
         if len(value) == 0:
             return None
         try:
-            credentials = Credentials.new_from_json(value)
+            credentials = client.Credentials.new_from_json(value)
         except ValueError:
             credentials = None
         return credentials
@@ -297,14 +286,14 @@ class CredentialsProperty(db.Property):
     def validate(self, value):
         value = super(CredentialsProperty, self).validate(value)
         logger.info("validate: Got type " + str(type(value)))
-        if value is not None and not isinstance(value, Credentials):
+        if value is not None and not isinstance(value, client.Credentials):
             raise db.BadValueError(
                 'Property {0} must be convertible '
                 'to a Credentials instance ({1})'.format(self.name, value))
         return value
 
 
-class StorageByKeyName(Storage):
+class StorageByKeyName(client.Storage):
     """Store and retrieve a credential to and from the App Engine datastore.
 
     This Storage helper presumes the Credentials have been stored as a
@@ -312,7 +301,7 @@ class StorageByKeyName(Storage):
     and that entities are stored by key_name.
     """
 
-    @util.positional(4)
+    @_helpers.positional(4)
     def __init__(self, model, key_name, property_name, cache=None, user=None):
         """Constructor for Storage.
 
@@ -396,7 +385,7 @@ class StorageByKeyName(Storage):
         if self._cache:
             json = self._cache.get(self._key_name)
             if json:
-                credentials = Credentials.new_from_json(json)
+                credentials = client.Credentials.new_from_json(json)
         if credentials is None:
             entity = self._get_entity()
             if entity is not None:
@@ -530,11 +519,11 @@ class OAuth2Decorator(object):
 
     flow = property(get_flow, set_flow)
 
-    @util.positional(4)
+    @_helpers.positional(4)
     def __init__(self, client_id, client_secret, scope,
-                 auth_uri=GOOGLE_AUTH_URI,
-                 token_uri=GOOGLE_TOKEN_URI,
-                 revoke_uri=GOOGLE_REVOKE_URI,
+                 auth_uri=oauth2client.GOOGLE_AUTH_URI,
+                 token_uri=oauth2client.GOOGLE_TOKEN_URI,
+                 revoke_uri=oauth2client.GOOGLE_REVOKE_URI,
                  user_agent=None,
                  message=None,
                  callback_path='/oauth2callback',
@@ -597,7 +586,7 @@ class OAuth2Decorator(object):
         self.credentials = None
         self._client_id = client_id
         self._client_secret = client_secret
-        self._scope = util.scopes_to_string(scope)
+        self._scope = _helpers.scopes_to_string(scope)
         self._auth_uri = auth_uri
         self._token_uri = token_uri
         self._revoke_uri = revoke_uri
@@ -653,7 +642,7 @@ class OAuth2Decorator(object):
                 return request_handler.redirect(self.authorize_url())
             try:
                 resp = method(request_handler, *args, **kwargs)
-            except AccessTokenRefreshError:
+            except client.AccessTokenRefreshError:
                 return request_handler.redirect(self.authorize_url())
             finally:
                 self.credentials = None
@@ -674,7 +663,7 @@ class OAuth2Decorator(object):
         if self.flow is None:
             redirect_uri = request_handler.request.relative_url(
                 self._callback_path)  # Usually /oauth2callback
-            self.flow = OAuth2WebServerFlow(
+            self.flow = client.OAuth2WebServerFlow(
                 self._client_id, self._client_secret, self._scope,
                 redirect_uri=redirect_uri, user_agent=self._user_agent,
                 auth_uri=self._auth_uri, token_uri=self._token_uri,
@@ -749,7 +738,8 @@ class OAuth2Decorator(object):
             *args: Positional arguments passed to httplib2.Http constructor.
             **kwargs: Positional arguments passed to httplib2.Http constructor.
         """
-        return self.credentials.authorize(httplib2.Http(*args, **kwargs))
+        return self.credentials.authorize(
+            transport.get_http_object(*args, **kwargs))
 
     @property
     def callback_path(self):
@@ -811,7 +801,7 @@ class OAuth2Decorator(object):
                     if (decorator._token_response_param and
                             credentials.token_response):
                         resp_json = json.dumps(credentials.token_response)
-                        redirect_uri = util._add_query_parameter(
+                        redirect_uri = _helpers._add_query_parameter(
                             redirect_uri, decorator._token_response_param,
                             resp_json)
 
@@ -855,7 +845,7 @@ class OAuth2DecoratorFromClientSecrets(OAuth2Decorator):
 
     """
 
-    @util.positional(3)
+    @_helpers.positional(3)
     def __init__(self, filename, scope, message=None, cache=None, **kwargs):
         """Constructor
 
@@ -898,7 +888,7 @@ class OAuth2DecoratorFromClientSecrets(OAuth2Decorator):
             self._message = 'Please configure your application for OAuth 2.0.'
 
 
-@util.positional(2)
+@_helpers.positional(2)
 def oauth2decorator_from_clientsecrets(filename, scope,
                                        message=None, cache=None):
     """Creates an OAuth2Decorator populated from a clientsecrets file.

@@ -6,16 +6,17 @@
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
 
+# pylint: disable=g-bad-import-order
 import collections
 import json
 import numbers
+import six
 
-import apifunction
-import computedobject
-import ee_exception
-import ee_types
-import serializer
-
+from . import apifunction
+from . import computedobject
+from . import ee_exception
+from . import ee_types
+from . import serializer
 
 # A sentinel value used to detect unspecified function parameters.
 _UNSPECIFIED = object()
@@ -26,7 +27,11 @@ class Geometry(computedobject.ComputedObject):
 
   _initialized = False
 
-  def __init__(self, geo_json, opt_proj=None, opt_geodesic=None):
+  def __init__(self,
+               geo_json,
+               opt_proj=None,
+               opt_geodesic=None,
+               opt_evenOdd=None):
     """Creates a geometry.
 
     Args:
@@ -45,24 +50,29 @@ class Geometry(computedobject.ComputedObject):
           interpreted as planar lines in the specified CRS. If absent,
           defaults to true if the CRS is geographic (including the default
           EPSG:4326), or to false if the CRS is projected.
-
+      opt_evenOdd: If true, polygon interiors will be determined by the even/odd
+          rule, where a point is inside if it crosses an odd number of edges to
+          reach a point at infinity. Otherwise polygons use the left-inside
+          rule, where interiors are on the left side of the shell's edges when
+          walking the vertices in the given order. If unspecified, defaults to
+          True.
     Raises:
       EEException: if the given geometry isn't valid.
     """
     self.initialize()
 
-    computed = (isinstance(geo_json, computedobject.ComputedObject) and
-                not (isinstance(geo_json, Geometry) and
-                     geo_json._type is not None))  # pylint: disable=protected-access
-    options = opt_proj or opt_geodesic
+    computed = (
+        isinstance(geo_json, computedobject.ComputedObject) and
+        not (isinstance(geo_json, Geometry) and geo_json._type is not None))  # pylint: disable=protected-access
+    options = opt_proj or opt_geodesic or opt_evenOdd
     if computed:
       if options:
         raise ee_exception.EEException(
             'Setting the CRS or geodesic on a computed Geometry is not '
-            'suported.  Use Geometry.transform().')
+            'supported.  Use Geometry.transform().')
       else:
-        super(Geometry, self).__init__(
-            geo_json.func, geo_json.args, geo_json.varName)
+        super(Geometry, self).__init__(geo_json.func, geo_json.args,
+                                       geo_json.varName)
         return
 
     # Below here we're working with a GeoJSON literal.
@@ -90,8 +100,8 @@ class Geometry(computedobject.ComputedObject):
     elif 'crs' in geo_json:
       if (isinstance(geo_json.get('crs'), dict) and
           geo_json['crs'].get('type') == 'name' and
-          isinstance(geo_json['crs'].get('properties'), dict) and
-          isinstance(geo_json['crs']['properties'].get('name'), basestring)):
+          isinstance(geo_json['crs'].get('properties'), dict) and isinstance(
+              geo_json['crs']['properties'].get('name'), six.string_types)):
         self._proj = geo_json['crs']['properties']['name']
       else:
         raise ee_exception.EEException('Invalid CRS declaration in GeoJSON: ' +
@@ -103,6 +113,38 @@ class Geometry(computedobject.ComputedObject):
     self._geodesic = opt_geodesic
     if opt_geodesic is None and 'geodesic' in geo_json:
       self._geodesic = bool(geo_json['geodesic'])
+
+    # Whether polygon interiors use the even/odd rule.
+    self._evenOdd = opt_evenOdd
+    if opt_evenOdd is None and 'evenOdd' in geo_json:
+      self._evenOdd = bool(geo_json['evenOdd'])
+
+    # Build a proxy for this object that is an invocation of a server-side
+    # constructor. This is used during Cloud API encoding, but can't be
+    # constructed at that time: due to id()-based caching in Serializer,
+    # building transient objects during encoding isn't safe.
+    ctor_args = {}
+    if self._type == 'GeometryCollection':
+      ctor_name = 'MultiGeometry'
+      ctor_args['geometries'] = [Geometry(g) for g in self._geometries]
+    else:
+      ctor_name = self._type
+      ctor_args['coordinates'] = self._coordinates
+
+    if self._proj is not None:
+      if isinstance(self._proj, six.string_types):
+        ctor_args['crs'] = apifunction.ApiFunction.lookup('Projection').call(
+            self._proj)
+      else:
+        ctor_args['crs'] = self._proj
+
+    if self._geodesic is not None:
+      ctor_args['geodesic'] = self._geodesic
+
+    if self._evenOdd is not None:
+      ctor_args['evenOdd'] = self._evenOdd
+    self._computed_equivalent = apifunction.ApiFunction.lookup(
+        'GeometryConstructors.' + ctor_name).apply(ctor_args)
 
   @classmethod
   def initialize(cls):
@@ -137,8 +179,10 @@ class Geometry(computedobject.ComputedObject):
     Returns:
       An ee.Geometry describing a point.
     """
-    init = Geometry._parseArgs('Point', 1, Geometry._GetSpecifiedArgs(
-        (coords, proj) + args, ('lon', 'lat'), **kwargs))
+    init = Geometry._parseArgs(
+        'Point', 1,
+        Geometry._GetSpecifiedArgs((coords, proj) + args, ('lon', 'lat'),
+                                   **kwargs))
     if not isinstance(init, computedobject.ComputedObject):
       xy = init['coordinates']
       if not isinstance(xy, (list, tuple)) or len(xy) != 2:
@@ -168,10 +212,14 @@ class Geometry(computedobject.ComputedObject):
     all_args = Geometry._GetSpecifiedArgs((coords, proj) + args)
     return Geometry(Geometry._parseArgs('MultiPoint', 2, all_args))
 
+  # pylint: disable=keyword-arg-before-vararg
   @staticmethod
-  def Rectangle(coords=_UNSPECIFIED, proj=_UNSPECIFIED,
-                geodesic=_UNSPECIFIED, maxError=_UNSPECIFIED,
-                *args, **kwargs):
+  def Rectangle(coords=_UNSPECIFIED,
+                proj=_UNSPECIFIED,
+                geodesic=_UNSPECIFIED,
+                evenOdd=_UNSPECIFIED,
+                *args,
+                **kwargs):
     """Constructs an ee.Geometry describing a rectangular polygon.
 
     Args:
@@ -186,8 +234,12 @@ class Geometry(computedobject.ComputedObject):
           are curved to follow the shortest path on the surface of the Earth.
           The default is the geodesic state of the inputs, or true if the
           inputs are numbers.
-      maxError: Max error when input geometry must be reprojected to an
-          explicitly requested result projection or geodesic state.
+      evenOdd: If true, polygon interiors will be determined by the even/odd
+          rule, where a point is inside if it crosses an odd number of edges to
+          reach a point at infinity. Otherwise polygons use the left-inside
+          rule, where interiors are on the left side of the shell's edges when
+          walking the vertices in the given order. If unspecified, defaults to
+          True.
       *args: For convenience, varargs may be used when all arguments are
           numbers. This allows creating EPSG:4326 Polygons given exactly four
           coordinates, e.g.
@@ -198,9 +250,11 @@ class Geometry(computedobject.ComputedObject):
     Returns:
       An ee.Geometry describing a rectangular polygon.
     """
-    init = Geometry._parseArgs('Rectangle', 2, Geometry._GetSpecifiedArgs(
-        (coords, proj, geodesic, maxError) + args,
-        ('xlo', 'ylo', 'xhi', 'yhi'), **kwargs))
+    init = Geometry._parseArgs(
+        'Rectangle', 2,
+        Geometry._GetSpecifiedArgs(
+            (coords, proj, geodesic, evenOdd) + args,
+            ('xlo', 'ylo', 'xhi', 'yhi'), **kwargs))
     if not isinstance(init, computedobject.ComputedObject):
       # GeoJSON does not have a Rectangle type, so expand to a Polygon.
       xy = init['coordinates']
@@ -216,9 +270,12 @@ class Geometry(computedobject.ComputedObject):
       init['type'] = 'Polygon'
     return Geometry(init)
 
+  # pylint: disable=keyword-arg-before-vararg
   @staticmethod
-  def LineString(coords=_UNSPECIFIED, proj=_UNSPECIFIED,
-                 geodesic=_UNSPECIFIED, maxError=_UNSPECIFIED,
+  def LineString(coords=_UNSPECIFIED,
+                 proj=_UNSPECIFIED,
+                 geodesic=_UNSPECIFIED,
+                 maxError=_UNSPECIFIED,
                  *args):
     """Constructs an ee.Geometry describing a LineString.
 
@@ -244,13 +301,16 @@ class Geometry(computedobject.ComputedObject):
     Returns:
       An ee.Geometry describing a LineString.
     """
-    all_args = Geometry._GetSpecifiedArgs(
-        (coords, proj, geodesic, maxError) + args)
+    all_args = Geometry._GetSpecifiedArgs((coords, proj, geodesic, maxError) +
+                                          args)
     return Geometry(Geometry._parseArgs('LineString', 2, all_args))
 
+  # pylint: disable=keyword-arg-before-vararg
   @staticmethod
-  def LinearRing(coords=_UNSPECIFIED, proj=_UNSPECIFIED,
-                 geodesic=_UNSPECIFIED, maxError=_UNSPECIFIED,
+  def LinearRing(coords=_UNSPECIFIED,
+                 proj=_UNSPECIFIED,
+                 geodesic=_UNSPECIFIED,
+                 maxError=_UNSPECIFIED,
                  *args):
     """Constructs an ee.Geometry describing a LinearRing.
 
@@ -279,13 +339,16 @@ class Geometry(computedobject.ComputedObject):
     Returns:
       A dictionary representing a GeoJSON LinearRing.
     """
-    all_args = Geometry._GetSpecifiedArgs(
-        (coords, proj, geodesic, maxError) + args)
+    all_args = Geometry._GetSpecifiedArgs((coords, proj, geodesic, maxError) +
+                                          args)
     return Geometry(Geometry._parseArgs('LinearRing', 2, all_args))
 
+  # pylint: disable=keyword-arg-before-vararg
   @staticmethod
-  def MultiLineString(coords=_UNSPECIFIED, proj=_UNSPECIFIED,
-                      geodesic=_UNSPECIFIED, maxError=_UNSPECIFIED,
+  def MultiLineString(coords=_UNSPECIFIED,
+                      proj=_UNSPECIFIED,
+                      geodesic=_UNSPECIFIED,
+                      maxError=_UNSPECIFIED,
                       *args):
     """Constructs an ee.Geometry describing a MultiLineString.
 
@@ -315,13 +378,17 @@ class Geometry(computedobject.ComputedObject):
     Returns:
       An ee.Geometry describing a MultiLineString.
     """
-    all_args = Geometry._GetSpecifiedArgs(
-        (coords, proj, geodesic, maxError) + args)
+    all_args = Geometry._GetSpecifiedArgs((coords, proj, geodesic, maxError) +
+                                          args)
     return Geometry(Geometry._parseArgs('MultiLineString', 3, all_args))
 
+  # pylint: disable=keyword-arg-before-vararg
   @staticmethod
-  def Polygon(coords=_UNSPECIFIED, proj=_UNSPECIFIED,
-              geodesic=_UNSPECIFIED, maxError=_UNSPECIFIED,
+  def Polygon(coords=_UNSPECIFIED,
+              proj=_UNSPECIFIED,
+              geodesic=_UNSPECIFIED,
+              maxError=_UNSPECIFIED,
+              evenOdd=_UNSPECIFIED,
               *args):
     """Constructs an ee.Geometry describing a polygon.
 
@@ -339,6 +406,12 @@ class Geometry(computedobject.ComputedObject):
           inputs are numbers.
       maxError: Max error when input geometry must be reprojected to an
           explicitly requested result projection or geodesic state.
+      evenOdd: If true, polygon interiors will be determined by the even/odd
+          rule, where a point is inside if it crosses an odd number of edges to
+          reach a point at infinity. Otherwise polygons use the left-inside
+          rule, where interiors are on the left side of the shell's edges when
+          walking the vertices in the given order. If unspecified, defaults to
+          True.
       *args: For convenience, varargs may be used when all arguments are
           numbers. This allows creating geodesic EPSG:4326 Polygons with a
           single LinearRing given an even number of arguments, e.g.
@@ -347,13 +420,17 @@ class Geometry(computedobject.ComputedObject):
     Returns:
       An ee.Geometry describing a polygon.
     """
-    all_args = Geometry._GetSpecifiedArgs(
-        (coords, proj, geodesic, maxError) + args)
+    all_args = Geometry._GetSpecifiedArgs((coords, proj, geodesic, maxError,
+                                           evenOdd) + args)
     return Geometry(Geometry._parseArgs('Polygon', 3, all_args))
 
+  # pylint: disable=keyword-arg-before-vararg
   @staticmethod
-  def MultiPolygon(coords=_UNSPECIFIED, proj=_UNSPECIFIED,
-                   geodesic=_UNSPECIFIED, maxError=_UNSPECIFIED,
+  def MultiPolygon(coords=_UNSPECIFIED,
+                   proj=_UNSPECIFIED,
+                   geodesic=_UNSPECIFIED,
+                   maxError=_UNSPECIFIED,
+                   evenOdd=_UNSPECIFIED,
                    *args):
     """Constructs an ee.Geometry describing a MultiPolygon.
 
@@ -372,6 +449,12 @@ class Geometry(computedobject.ComputedObject):
           inputs are numbers.
       maxError: Max error when input geometry must be reprojected to an
           explicitly requested result projection or geodesic state.
+      evenOdd: If true, polygon interiors will be determined by the even/odd
+          rule, where a point is inside if it crosses an odd number of edges to
+          reach a point at infinity. Otherwise polygons use the left-inside
+          rule, where interiors are on the left side of the shell's edges when
+          walking the vertices in the given order. If unspecified, defaults to
+          True.
       *args: For convenience, varargs may be used when all arguments are
           numbers. This allows creating geodesic EPSG:4326 MultiPolygons with
           a single Polygon with a single LinearRing given an even number of
@@ -381,11 +464,11 @@ class Geometry(computedobject.ComputedObject):
     Returns:
       An ee.Geometry describing a MultiPolygon.
     """
-    all_args = Geometry._GetSpecifiedArgs(
-        (coords, proj, geodesic, maxError) + args)
+    all_args = Geometry._GetSpecifiedArgs((coords, proj, geodesic, maxError,
+                                           evenOdd) + args)
     return Geometry(Geometry._parseArgs('MultiPolygon', 4, all_args))
 
-  def encode(self, opt_encoder=None):  # pylint: disable=unused-argument
+  def encode(self, opt_encoder=None):
     """Returns a GeoJSON-compatible representation of the geometry."""
     if not getattr(self, '_type', None):
       return super(Geometry, self).encode(opt_encoder)
@@ -397,17 +480,22 @@ class Geometry(computedobject.ComputedObject):
       result['coordinates'] = self._coordinates
 
     if self._proj is not None:
-      result['crs'] = {
-          'type': 'name',
-          'properties': {
-              'name': self._proj
-          }
-      }
+      result['crs'] = {'type': 'name', 'properties': {'name': self._proj}}
 
     if self._geodesic is not None:
       result['geodesic'] = self._geodesic
 
+    if self._evenOdd is not None:
+      result['evenOdd'] = self._evenOdd
+
     return result
+
+  def encode_cloud_value(self, encoder):
+    """Returns a server-side invocation of the appropriate constructor."""
+    if not getattr(self, '_type', None):
+      return super(Geometry, self).encode_cloud_value(encoder)
+
+    return self._computed_equivalent.encode_cloud_value(encoder)
 
   def toGeoJSON(self):
     """Returns a GeoJSON representation of the geometry."""
@@ -481,10 +569,11 @@ class Geometry(computedobject.ComputedObject):
     if not isinstance(shape, collections.Iterable):
       return -1
 
-    if shape and isinstance(shape[0], collections.Iterable):
+    if shape and isinstance(shape[0], collections.Iterable) and not isinstance(
+        shape[0], six.string_types):
       count = Geometry._isValidCoordinates(shape[0])
       # If more than 1 ring or polygon, they should have the same nesting.
-      for i in xrange(1, len(shape)):
+      for i in range(1, len(shape)):
         if Geometry._isValidCoordinates(shape[i]) != count:
           return -1
       return count + 1
@@ -516,11 +605,11 @@ class Geometry(computedobject.ComputedObject):
     if len(coordinates) == 2:
       return coordinates
     if len(coordinates) % 2 != 0:
-      raise ee_exception.EEException('Invalid number of coordinates: %s' %
-                                     len(coordinates))
+      raise ee_exception.EEException(
+          'Invalid number of coordinates: %s' % len(coordinates))
 
     line = []
-    for i in xrange(0, len(coordinates), 2):
+    for i in range(0, len(coordinates), 2):
       pt = [coordinates[i], coordinates[i + 1]]
       line.append(pt)
     return line
@@ -539,7 +628,11 @@ class Geometry(computedobject.ComputedObject):
       Otherwise a ComputedObject calling the appropriate constructor.
     """
     result = {}
-    keys = ['coordinates', 'crs', 'geodesic', 'maxError']
+    keys = ['coordinates', 'crs', 'geodesic']
+    if ctor_name != 'Rectangle':
+      # The constructor for Rectangle does not accept maxError.
+      keys.append('maxError')
+    keys.append('evenOdd')
 
     if all(ee_types.isNumber(i) for i in args):
       # All numbers, so convert them to a true array.
@@ -560,12 +653,18 @@ class Geometry(computedobject.ComputedObject):
         result.get('geodesic') is not None or
         result.get('maxError') is not None):
       # Some arguments cannot be handled in the client, so make a server call.
+      # Note we don't declare a default evenOdd value, so the server can infer
+      # a default based on the projection.
       server_name = 'GeometryConstructors.' + ctor_name
       return apifunction.ApiFunction.lookup(server_name).apply(result)
     else:
       # Everything can be handled here, so check the depth and init this object.
       result['type'] = ctor_name
       result['coordinates'] = Geometry._fixDepth(depth, result['coordinates'])
+      # Enable evenOdd by default for any kind of polygon.
+      if ('evenOdd' not in result and
+          ctor_name in ['Polygon', 'Rectangle', 'MultiPolygon']):
+        result['evenOdd'] = True
       return result
 
   @staticmethod

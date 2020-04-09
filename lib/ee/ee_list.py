@@ -3,9 +3,9 @@
 
 
 
-import apifunction
-import computedobject
-import ee_exception
+from . import apifunction
+from . import computedobject
+from . import ee_exception
 
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
@@ -19,7 +19,7 @@ class List(computedobject.ComputedObject):
   def __init__(self, arg):
     """Construct a list wrapper.
 
-    This constuctor accepts the following args:
+    This constructor accepts the following args:
       1) A bare list.
       2) A ComputedObject returning a list.
 
@@ -63,3 +63,9 @@ class List(computedobject.ComputedObject):
       return [opt_encoder(elem) for elem in self._list]
     else:
       return super(List, self).encode(opt_encoder)
+
+  def encode_cloud_value(self, opt_encoder=None):
+    if isinstance(self._list, (list, tuple)):
+      return {'valueReference': opt_encoder(self._list)}
+    else:
+      return super(List, self).encode_cloud_value(opt_encoder)

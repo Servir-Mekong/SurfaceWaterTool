@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Contains Django URL patterns used for OAuth2 flow."""
+
 from django.conf import urls
 
 from oauth2client.contrib.django_util import views

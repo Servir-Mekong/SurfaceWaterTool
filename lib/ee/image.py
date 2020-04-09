@@ -9,17 +9,22 @@ See: https://sites.google.com/site/earthengineapidocs for more details.
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
 
+# Disable lint messages caused by Python 3 compatibility changes.
+# pylint: disable=superfluous-parens
+
 import json
 
-import apifunction
-import computedobject
-import data
-import deprecation
-import ee_exception
-import ee_types
-import element
-import function
-import geometry
+from . import apifunction
+from . import computedobject
+from . import data
+from . import deprecation
+from . import ee_exception
+from . import ee_types
+from . import element
+from . import function
+from . import geometry
+
+import six
 
 
 class Image(element.Element):
@@ -121,11 +126,194 @@ class Image(element.Element):
     Returns:
       An object containing a mapid and access token, or an error message.
     """
-    request = (vis_params or {}).copy()
-    request['image'] = self.serialize()
+    vis_image, request = self._apply_visualization(vis_params)
+    request['image'] = vis_image
     response = data.getMapId(request)
     response['image'] = self
     return response
+
+  def _apply_crs_and_affine(self, params):
+    """Applies any CRS and affine parameters to an image.
+
+    Wraps the image in a call to Reproject() if the request includes
+    specifying a CRS and affine transformation.
+
+    Args:
+      params: the request parameters.
+
+    Returns:
+      A tuple containing:
+      - the result of applying the projection parameters to this image
+      - any remaining parameters.
+    """
+    keys_to_extract = set(['crs', 'crs_transform', 'crsTransform'])
+    request = {}
+    reprojection_params = {}
+    if params:
+      for key in params:
+        if key in keys_to_extract:
+          reprojection_params[key] = params[key]
+        else:
+          request[key] = params[key]
+    image = self
+    if reprojection_params:
+      if 'crsTransform' in reprojection_params:
+        if 'crs_transform' in reprojection_params:
+          raise ee_exception.EEException(
+              'Both "crs_transform" and "crsTransform" are specified.')
+        reprojection_params['crs_transform'] = reprojection_params.pop(
+            'crsTransform')
+
+      if 'crs' not in reprojection_params:
+        raise ee_exception.EEException(
+            'Must specify "crs" if "crs_transform" is specified.')
+      crs = reprojection_params['crs']
+
+      if 'crs_transform' in reprojection_params:
+        crs_transform = reprojection_params['crs_transform']
+        # crs_transform can come in a bewildering variety of shapes: a list of
+        # numbers, an ee.List of possibly computed values, or even a
+        # comma-separated list of numbers, potentially wrapped in square
+        # brackets. Parameter coercion takes care of the first two, but we need
+        # to deal with the third.
+        if isinstance(crs_transform, six.string_types):
+          crs_transform = [
+              float(x) for x in crs_transform.lstrip('[').rstrip(']').split(',')
+          ]
+
+        image = image.reproject(crs, crsTransform=crs_transform)
+
+        # Special case here: If they specified "crs", "crs_transform", and a
+        # two-element "dimensions", but not a region or other parameters such
+        # as "scale", then the desired operation is to extract an exact
+        # rectangle in that exact projection, not what we'd otherwise
+        # interpret this as ("reproject to that projection, then resize to
+        # those dimensions"). Detect this and convert the dimensions to a
+        # Geometry: a Rectangle in that Projection.
+        if ('dimensions' in request and 'region' not in request and
+            'scale' not in request):
+          dimensions = _parse_dimensions(params['dimensions'])
+          if len(dimensions) == 2:
+            del request['dimensions']
+            desired_rectangle = geometry.Geometry.Rectangle(
+                [0, 0, dimensions[0], dimensions[1]],
+                proj=image.projection(),
+                evenOdd=True,
+                geodesic=False)
+            # This will take effect in _apply_selection_and_scale. The
+            # combination reprojection and clipping will result in the exact
+            # desired rectangle.
+            request['region'] = desired_rectangle
+      else:
+        # CRS but no CRS transform means that we reproject to that CRS using a
+        # default transform (with the Y coordinate flipped as we usually do) but
+        # don't resample after the reprojection, so that later operations can
+        # alter the image scale.
+        image = image.setDefaultProjection(
+            crs, crsTransform=[1, 0, 0, 0, -1, 0])
+
+    return image, request
+
+  def _apply_selection_and_scale(self, params):
+    """Applies region selection and scaling parameters to an image.
+
+    Wraps the image in a call to clipToBoundsAndScale() if there are any
+    recognized region selection and scale parameters present.
+
+    Args:
+      params: the request parameters.
+
+    Returns:
+      A tuple containing:
+      - the result of applying the selection and scale parameters to this
+        image
+      - any remaining (non-selection/scale) parameters.
+    """
+    keys_to_extract = set(['region', 'dimensions', 'scale'])
+    request = {}
+    selection_params = {}
+    if params:
+      for key in params:
+        if key not in keys_to_extract:
+          request[key] = params[key]
+        else:
+          if key == 'dimensions':
+            dimensions = _parse_dimensions(params['dimensions'])
+            if len(dimensions) == 1:
+              selection_params['maxDimension'] = dimensions[0]
+            elif len(dimensions) == 2:
+              selection_params['width'] = dimensions[0]
+              selection_params['height'] = dimensions[1]
+          elif key == 'region':
+            # Could be a Geometry, a GeoJSON struct, or a GeoJSON string.
+            # Geometry's constructor knows how to handle the first two.
+            region = params[key]
+            if isinstance(region, six.string_types):
+              region = json.loads(region)
+            selection_params['geometry'] = geometry.Geometry(region)
+          else:
+            selection_params[key] = params[key]
+
+    image = self
+    if selection_params:
+      selection_params['input'] = image
+      image = apifunction.ApiFunction.apply_('Image.clipToBoundsAndScale',
+                                             selection_params)
+    return image, request
+
+  def _apply_visualization(self, params):
+    """Applies visualization parameters to an image.
+
+    Wraps the image in a call to visualize() if there are any recognized
+    visualization parameters present.
+
+    Args:
+      params: the request parameters.
+
+    Returns:
+      A tuple containing:
+      - the result of applying the visualization parameters to this image
+      - any remaining (non-visualization) parameters.
+    """
+    # Split the parameters into those handled handled by visualize()
+    # and those that aren't.
+    keys_to_extract = set(['bands', 'gain', 'bias', 'min', 'max',
+                           'gamma', 'palette', 'opacity', 'forceRgbOutput'])
+    request = {}
+    vis_params = {}
+    if params:
+      for key in params:
+        if key in keys_to_extract:
+          vis_params[key] = params[key]
+        else:
+          request[key] = params[key]
+
+    image = self
+    if vis_params:
+      vis_params['image'] = image
+      image = apifunction.ApiFunction.apply_('Image.visualize', vis_params)
+    return image, request
+
+  def prepare_for_export(self, params):
+    """Applies all relevant export parameters to an image.
+
+    Args:
+      params: the export request parameters.
+
+    Returns:
+      A tuple containing:
+      - an image that has had many of the request parameters applied
+        to it
+      - any remaining parameters.
+    """
+    image = self
+    # If the Cloud API is enabled, we can do cleaner handling of the parameters.
+    # If it isn't enabled, we have to be bug-for-bug compatible with current
+    # behaviour, so we do nothing.
+    if data._use_cloud_api:  # pylint: disable=protected-access
+      image, params = image._apply_crs_and_affine(params)  # pylint: disable=protected-access
+      image, params = image._apply_selection_and_scale(params)  # pylint: disable=protected-access
+    return image, params
 
   def getDownloadURL(self, params=None):
     """Get a download URL for this image.
@@ -163,6 +351,31 @@ class Image(element.Element):
     request['image'] = self.serialize()
     return data.makeDownloadUrl(data.getDownloadId(request))
 
+  def getThumbId(self, params):
+    """Applies transformations and returns the thumbId.
+
+    Args:
+      params: Parameters identical to getMapId, plus, optionally:
+          dimensions - (a number or pair of numbers in format WIDTHxHEIGHT) Max
+            dimensions of the thumbnail to render, in pixels. If only one number
+            is passed, it is used as the maximum, and the other dimension is
+            computed by proportional scaling.
+          region - (E,S,W,N or GeoJSON) Geospatial region of the image
+            to render. By default, the whole image.
+          format - (string) Either 'png' or 'jpg'.
+
+    Returns:
+      A thumbId for the created thumbnail.
+
+    Raises:
+      EEException: If the region parameter is not an array or GeoJSON object.
+    """
+    image, params = self._apply_crs_and_affine(params)
+    image, params = image._apply_selection_and_scale(params)  # pylint: disable=protected-access
+    image, params = image._apply_visualization(params)  # pylint: disable=protected-access
+    params['image'] = image
+    return data.getThumbId(params)
+
   def getThumbURL(self, params=None):
     """Get a thumbnail URL for this image.
 
@@ -182,16 +395,21 @@ class Image(element.Element):
     Raises:
       EEException: If the region parameter is not an array or GeoJSON object.
     """
-    request = params or {}
-    request['image'] = self.serialize()
-    if request.has_key('region'):
-      if (isinstance(request['region'], dict) or
-          isinstance(request['region'], list)):
-        request['region'] = json.dumps(request['region'])
-      elif not isinstance(request['region'], str):
+    # If the Cloud API is enabled, we can do cleaner handling of the parameters.
+    # If it isn't enabled, we have to be bug-for-bug compatible with current
+    # behaviour.
+    if data._use_cloud_api:  # pylint: disable=protected-access
+      return data.makeThumbUrl(self.getThumbId(params))
+    image, params = self._apply_visualization(params)
+    params['image'] = image
+    if 'region' in params:
+      if (isinstance(params['region'], dict) or
+          isinstance(params['region'], list)):
+        params['region'] = json.dumps(params['region'])
+      elif not isinstance(params['region'], str):
         raise ee_exception.EEException(
             'The region parameter must be an array or a GeoJSON object.')
-    return data.makeThumbUrl(data.getThumbId(request))
+    return data.makeThumbUrl(data.getThumbId(params))
 
   # Deprecated spellings to match the JS library.
   getDownloadUrl = deprecation.Deprecated('Use getDownloadURL().')(
@@ -328,19 +546,26 @@ class Image(element.Element):
 
     # Add custom arguments, promoting them to Images manually.
     if opt_map:
-      for name, value in opt_map.iteritems():
+      for name, value in opt_map.items():
         all_vars.append(name)
         args[name] = Image(value)
 
     body = apifunction.ApiFunction.call_(
         'Image.parseExpression', expression, arg_name, all_vars)
 
-    # Reinterpret the body call as an ee.Function by hand-generating the
-    # signature so the computed function knows its input and output types.
+    # Like Spot the zebra, Image.parseExpression is not like all the others.
+    # It's an Algorithm whose output (in "body" here) is another Algorithm, one
+    # that takes a set of Images and produces an Image. We need to make an
+    # ee.Function to wrap it properly: encoding and specification of input and
+    # output types.
     class ReinterpretedFunction(function.Function):
+      """A function that executes the result of a function."""
 
-      def encode(self, encoder):
+      def encode_invocation(self, encoder):
         return body.encode(encoder)
+
+      def encode_cloud_invocation(self, encoder):
+        return {'functionReference': encoder(body)}
 
       def getSignature(self):
         return {
@@ -350,14 +575,20 @@ class Image(element.Element):
             'returns': 'Image'
         }
 
-    # Perform the call.
+    # Perform the call to the result of Image.parseExpression
     return ReinterpretedFunction().apply(args)
 
   def clip(self, clip_geometry):
-    """Clips an image by a Geometry, Feature or FeatureCollection.
+    """Clips an image to a Geometry or Feature.
+
+    The output bands correspond exactly the input bands, except data not
+    covered by the geometry is masked. The output image retains the
+    metadata of the input image.
+
+    Use clipToCollection to clip an image to a FeatureCollection.
 
     Args:
-      clip_geometry: The Geometry, Feature or FeatureCollection to clip to.
+      clip_geometry: The Geometry or Feature to clip to.
 
     Returns:
       The clipped image.
@@ -383,7 +614,7 @@ class Image(element.Element):
     Returns:
       An image with the renamed bands.
     """
-    if args:
+    if args or ee_types.isString(names):
       # Handle varargs; everything else we let the server handle.
       args = list(args)
       args.insert(0, names)
@@ -398,3 +629,17 @@ class Image(element.Element):
   @staticmethod
   def name():
     return 'Image'
+
+
+def _parse_dimensions(dimensions):
+  """Parses a dimensions specification into a one or two element list."""
+  if ee_types.isNumber(dimensions):
+    return [dimensions]
+  elif isinstance(dimensions, six.string_types):
+    # Unpack WIDTHxHEIGHT
+    return [int(x) for x in dimensions.split('x')]
+  elif isinstance(dimensions, (list, tuple)) and 1 <= len(dimensions) <= 2:
+    return dimensions
+
+  raise ee_exception.EEException(
+      'Invalid dimensions {}.'.format(dimensions))

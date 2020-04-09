@@ -6,13 +6,22 @@
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
 
-import computedobject
-import ee_types
-import function
-import serializer
+# pylint: disable=g-bad-import-order
+import six
+
+from . import computedobject
+from . import ee_types
+from . import encodable
+from . import function
+from . import serializer
 
 
-class CustomFunction(function.Function):
+# Multiple inheritance, yay! This is necessary because a CustomFunction needs to
+# know how to encode itself in different ways:
+# - as an Encodable: encode its definition
+# - as a Function: encode its invocation (which may also involve encoding its
+#   definition, if that hasn't happened yet).
+class CustomFunction(function.Function, encodable.Encodable):
   """An object representing a custom EE Function."""
 
   def __init__(self, signature, body):
@@ -43,6 +52,20 @@ class CustomFunction(function.Function):
         'argumentNames': [x['name'] for x in self._signature['args']],
         'body': encoder(self._body)
     }
+
+  def encode_cloud_value(self, encoder):
+    return {
+        'functionDefinitionValue': {
+            'argumentNames': [x['name'] for x in self._signature['args']],
+            'body': encoder(self._body)
+        }
+    }
+
+  def encode_invocation(self, encoder):
+    return self.encode(encoder)
+
+  def encode_cloud_invocation(self, encoder):
+    return {'functionReference': encoder(self)}
 
   def getSignature(self):
     """Returns a description of the interface provided by this function."""
@@ -87,7 +110,7 @@ class CustomFunction(function.Function):
     """
 
     def StringifyType(t):
-      return t if isinstance(t, basestring) else ee_types.classToName(t)
+      return t if isinstance(t, six.string_types) else ee_types.classToName(t)
 
     args = [{'name': None, 'type': StringifyType(i)} for i in arg_types]
     signature = {
@@ -133,7 +156,7 @@ class CustomFunction(function.Function):
           # for this use case, as we only care about determinism.
           count += 1
         else:
-          for sub_expression in expression.itervalues():
+          for sub_expression in expression.values():
             count += CountFunctions(sub_expression)
       elif isinstance(expression, (list, tuple)):
         for sub_expression in expression:

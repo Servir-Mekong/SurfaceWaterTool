@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test for the ee.number module."""
+"""Test for the ee.dictionary module."""
 
 
 
@@ -15,19 +15,31 @@ class DictionaryTest(apitestcase.ApiTestCase):
     """Verifies basic behavior of ee.Dictionary."""
     src = {'a': 1, 'b': 2, 'c': 'three'}
     dictionary = ee.Dictionary(src)
-    self.assertEquals({'type': 'Dictionary', 'value': src},
-                      ee.Serializer(False)._encode(dictionary))
+    self.assertEqual({
+        'type': 'Dictionary',
+        'value': src
+    },
+                     ee.Serializer(False)._encode(dictionary))
+    self.assertEqual({'constantValue': {
+        'a': 1,
+        'b': 2,
+        'c': 'three'
+    }},
+                     ee.Serializer(False,
+                                   for_cloud_api=True)._encode(dictionary))
 
     f = ee.Feature(None, {'properties': src})
     computed = ee.Dictionary(f.get('properties'))
     self.assertTrue(isinstance(computed, ee.Dictionary))
 
-    try:
-      ee.Dictionary(1)
-    except ee.EEException as e:
-      self.assertTrue('Invalid argument' in str(e))
-    else:
-      self.fail('Expected an exception.')
+    # The 4 types of arguments we expect
+    cons = (ee.Dictionary(src),
+            ee.Dictionary(f.get('properties')),
+            ee.Dictionary(),
+            ee.Dictionary(('one', 1)))
+
+    for d in cons:
+      self.assertTrue(isinstance(d, ee.ComputedObject))
 
   def testInternals(self):
     """Test eq(), ne() and hash()."""
@@ -35,11 +47,11 @@ class DictionaryTest(apitestcase.ApiTestCase):
     b = ee.Dictionary({'two': 2})
     c = ee.Dictionary({'one': 1})
 
-    self.assertEquals(a, a)
-    self.assertNotEquals(a, b)
-    self.assertEquals(a, c)
-    self.assertNotEquals(b, c)
-    self.assertNotEquals(hash(a), hash(b))
+    self.assertEqual(a, a)
+    self.assertNotEqual(a, b)
+    self.assertEqual(a, c)
+    self.assertNotEqual(b, c)
+    self.assertNotEqual(hash(a), hash(b))
 
 
 if __name__ == '__main__':

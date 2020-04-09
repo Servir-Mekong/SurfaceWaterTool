@@ -6,13 +6,34 @@
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
 
-import data
-import ee_exception
-import encodable
-import serializer
+# pylint: disable=g-bad-import-order
+import six
+
+from . import data
+from . import ee_exception
+from . import encodable
+from . import serializer
 
 
-class ComputedObject(encodable.Encodable):
+class ComputedObjectMetaclass(type):
+  """A meta-class that makes type coercion idempotent.
+
+  If an instance of a ComputedObject subclass is instantiated by passing
+  another instance of that class as the sole argument, this short-circuits
+  and returns that argument.
+  """
+
+  def __call__(cls, *args, **kwargs):
+    """Creates a computed object, catching self-casts."""
+    if len(args) == 1 and not kwargs and isinstance(args[0], cls):
+      # Self-casting returns the argument unchanged.
+      return args[0]
+    else:
+      return type.__call__(cls, *args, **kwargs)
+
+
+class ComputedObject(six.with_metaclass(
+    ComputedObjectMetaclass, encodable.Encodable)):
   """A representation of an Earth Engine computed object.
 
   This is a base class for most API objects.
@@ -24,29 +45,13 @@ class ComputedObject(encodable.Encodable):
   ComputedObjects come in two flavors:
   1. If func != null and args != null, the ComputedObject is encoded as an
      invocation of func with args.
-  2. If func == null and agrs == null, the ComputedObject is a variable
+  2. If func == null and args == null, the ComputedObject is a variable
      reference. The variable name is stored in its varName member. Note that
      in this case, varName may still be null; this allows the name to be
      deterministically generated at a later time. This is used to generate
      deterministic variable names for mapped functions, ensuring that nested
      mapping calls do not use the same variable name.
   """
-
-  class __metaclass__(type):
-    """A meta-class that makes type coercion idempotent.
-
-    If an instance of a ComputedObject subclass is instantiated by passing
-    another instance of that class as the sole argument, this short-circuits
-    and returns that argument.
-    """
-
-    def __call__(cls, *args, **kwargs):
-      """Creates a computed object, catching self-casts."""
-      if len(args) == 1 and not kwargs and isinstance(args[0], cls):
-        # Self-casting returns the argument unchanged.
-        return args[0]
-      else:
-        return type.__call__(cls, *args, **kwargs)
 
   def __init__(self, func, args, opt_varName=None):
     """Creates a computed object.
@@ -71,6 +76,7 @@ class ComputedObject(encodable.Encodable):
     self.varName = opt_varName
 
   def __eq__(self, other):
+    # pylint: disable=unidiomatic-typecheck
     return (type(self) == type(other) and
             self.__dict__ == other.__dict__)
 
@@ -86,7 +92,7 @@ class ComputedObject(encodable.Encodable):
     Returns:
       The object can evaluate to anything.
     """
-    return data.getValue({'json': self.serialize()})
+    return data.computeValue(self)
 
   def encode(self, encoder):
     """Encodes the object in a format compatible with Serializer."""
@@ -99,11 +105,11 @@ class ComputedObject(encodable.Encodable):
       # Encode the function that we're calling.
       func = encoder(self.func)
       # Built-in functions are encoded as strings under a different key.
-      key = 'functionName' if isinstance(func, basestring) else 'function'
+      key = 'functionName' if isinstance(func, six.string_types) else 'function'
 
       # Encode all arguments recursively.
       encoded_args = {}
-      for name, value in self.args.iteritems():
+      for name, value in self.args.items():
         if value is not None:
           encoded_args[name] = encoder(value)
 
@@ -113,16 +119,44 @@ class ComputedObject(encodable.Encodable):
           key: func
       }
 
-  def serialize(self, opt_pretty=False):
+  def encode_cloud_value(self, encoder):
+    if self.isVariable():
+      return {'argumentReference': self.varName}
+    else:
+      if isinstance(self.func, six.string_types):
+        invocation = {'functionName': self.func}
+      else:
+        invocation = self.func.encode_cloud_invocation(encoder)
+
+      # Encode all arguments recursively.
+      encoded_args = {}
+      for name in sorted(self.args):
+        value = self.args[name]
+        if value is not None:
+          encoded_args[name] = {'valueReference': encoder(value)}
+      invocation['arguments'] = encoded_args
+      return {'functionInvocationValue': invocation}
+
+  def serialize(
+      self,
+      opt_pretty=False,
+      for_cloud_api=False
+  ):
     """Serialize this object into a JSON string.
 
     Args:
       opt_pretty: A flag indicating whether to pretty-print the JSON.
+      for_cloud_api: Whether the encoding should be done for the Cloud API
+        or the legacy API.
 
     Returns:
       The serialized representation of this object.
     """
-    return serializer.toJSON(self, opt_pretty)
+    return serializer.toJSON(
+        self,
+        opt_pretty,
+        for_cloud_api=for_cloud_api
+    )
 
   def __str__(self):
     """Writes out the object in a human-readable form."""

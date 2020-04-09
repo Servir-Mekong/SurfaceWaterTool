@@ -5,9 +5,10 @@
 
 import numbers
 
-import apifunction
-import computedobject
-import ee_exception
+from . import _cloud_api_utils
+from . import apifunction
+from . import computedobject
+from . import ee_exception
 
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
@@ -21,7 +22,7 @@ class Number(computedobject.ComputedObject):
   def __init__(self, number):
     """Construct a number wrapper.
 
-    This constuctor accepts the following args:
+    This constructor accepts the following args:
       1) A bare number.
       2) A ComputedObject returning a number.
 
@@ -62,3 +63,9 @@ class Number(computedobject.ComputedObject):
       return self._number
     else:
       return super(Number, self).encode(opt_encoder)
+
+  def encode_cloud_value(self, opt_encoder=None):
+    if isinstance(self._number, numbers.Number):
+      return _cloud_api_utils.encode_number_as_cloud_value(self._number)
+    else:
+      return super(Number, self).encode_cloud_value(opt_encoder)

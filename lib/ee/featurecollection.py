@@ -5,17 +5,18 @@
 
 # Using lowercase function naming to match the JavaScript names.
 # pylint: disable=g-bad-name
+# pylint: disable=g-long-lambda
 
-import apifunction
-import collection
-import computedobject
-import data
-import deprecation
-import ee_exception
-import ee_list
-import ee_types
-import feature
-import geometry
+from . import apifunction
+from . import collection
+from . import computedobject
+from . import data
+from . import deprecation
+from . import ee_exception
+from . import ee_list
+from . import ee_types
+from . import feature
+from . import geometry
 
 
 class FeatureCollection(collection.Collection):
@@ -29,13 +30,12 @@ class FeatureCollection(collection.Collection):
     Args:
       args: constructor argument.  One of:
           1) A string - assumed to be the name of a collection.
-          2) A number - assumed to be the ID of a Fusion Table.
-          3) A geometry.
-          4) A feature.
-          5) An array of features.
-          6) A computed object - reinterpreted as a collection.
+          2) A geometry.
+          3) A feature.
+          4) An array of features.
+          5) A computed object - reinterpreted as a collection.
       opt_column: The name of the geometry column to use. Only useful with the
-          string or number constructor arguments.
+          string constructor.
 
     Raises:
       EEException: if passed something other than the above.
@@ -50,7 +50,7 @@ class FeatureCollection(collection.Collection):
     if isinstance(args, feature.Feature):
       args = [args]
 
-    if ee_types.isNumber(args) or ee_types.isString(args):
+    if ee_types.isString(args):
       # An ID.
       actual_args = {'tableId': args}
       if opt_column:
@@ -138,21 +138,34 @@ class FeatureCollection(collection.Collection):
   getDownloadUrl = deprecation.Deprecated('Use getDownloadURL().')(
       getDownloadURL)
 
-  def select(self, selectors, opt_names=None, *args):
+  def select(self, propertySelectors, newProperties=None,
+             retainGeometry=True, *args):
     """Select properties from each feature in a collection.
 
     Args:
-      selectors: An array of names or regexes specifying the properties
+      propertySelectors: An array of names or regexes specifying the properties
           to select.
-      opt_names: An array of strings specifying the new names for the
+      newProperties: An array of strings specifying the new names for the
           selected properties.  If supplied, the length must match the number
           of properties selected.
+      retainGeometry: A boolean.  When false, the result will have no geometry.
       *args: Selector elements as varargs.
 
     Returns:
       The feature collection with selected properties.
     """
-    return self.map(lambda feat: feat.select(selectors, opt_names, *args))
+    if len(args) or ee_types.isString(propertySelectors):
+      args = list(args)
+      if not isinstance(retainGeometry, bool):
+        args.insert(0, retainGeometry)
+      if newProperties is not None:
+        args.insert(0, newProperties)
+      args.insert(0, propertySelectors)
+      return self.map(lambda feat: feat.select(args, None, True))
+    else:
+      return self.map(
+          lambda feat: feat.select(
+              propertySelectors, newProperties, retainGeometry))
 
   @staticmethod
   def name():

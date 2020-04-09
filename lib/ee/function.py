@@ -4,20 +4,20 @@
 
 
 # Using lowercase function naming to match the JavaScript names.
-# pylint: disable-msg=g-bad-name
+# pylint: disable=g-bad-name
 
 import textwrap
 
-import computedobject
-import ee_exception
-import encodable
-import serializer
+from . import computedobject
+from . import ee_exception
+from . import encodable
+from . import serializer
 
 
-class Function(encodable.Encodable):
+class Function(encodable.EncodableFunction):
   """An abstract base class for functions callable by the EE API.
 
-  Subclasses must implement encode() and getSignature().
+  Subclasses must implement encode_invocation() and getSignature().
   """
 
   # A function used to type-coerce arguments and return values.
@@ -158,8 +158,10 @@ class Function(encodable.Encodable):
   def getReturnType(self):
     return self.getSignature()['returns']
 
-  def serialize(self):
-    return serializer.toJSON(self)
+  def serialize(self, for_cloud_api=False):
+    return serializer.toJSON(
+        self, for_cloud_api=for_cloud_api
+    )
 
   def __str__(self):
     """Returns a user-readable docstring for this function."""
@@ -184,4 +186,4 @@ class Function(encodable.Encodable):
                                 width=DOCSTRING_WIDTH - len(name_part),
                                 subsequent_indent=' ' * 6)
         parts.append(arg_doc)
-    return u'\n'.join(parts).encode('utf8')
+    return '\n'.join(parts)
