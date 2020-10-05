@@ -33,7 +33,8 @@ class FeatureCollection(collection.Collection):
           2) A geometry.
           3) A feature.
           4) An array of features.
-          5) A computed object - reinterpreted as a collection.
+          5) A GeoJSON FeatureCollection.
+          6) A computed object - reinterpreted as a collection.
       opt_column: The name of the geometry column to use. Only useful with the
           string constructor.
 
@@ -69,6 +70,11 @@ class FeatureCollection(collection.Collection):
           apifunction.ApiFunction.lookup('Collection'), {
               'features': args
           })
+    elif isinstance(args, dict) and args.get('type') == 'FeatureCollection':
+      # A GeoJSON FeatureCollection
+      super(FeatureCollection, self).__init__(
+          apifunction.ApiFunction.lookup('Collection'),
+          {'features': [feature.Feature(i) for i in args.get('features', [])]})
     elif isinstance(args, computedobject.ComputedObject):
       # A custom object to reinterpret as a FeatureCollection.
       super(FeatureCollection, self).__init__(
@@ -101,8 +107,9 @@ class FeatureCollection(collection.Collection):
           'color', containing a hex RGB color string is allowed.
 
     Returns:
-      An object containing a mapid string, an access token, plus a
-      Collection.draw image wrapping this collection.
+      A map ID dictionary as described in ee.data.getMapId, including an
+      additional 'image' field containing Collection.draw image wrapping a
+      FeatureCollection containing this feature.
     """
     painted = apifunction.ApiFunction.apply_('Collection.draw', {
         'collection': self,
@@ -123,7 +130,10 @@ class FeatureCollection(collection.Collection):
       A URL to download the specified feature collection.
     """
     request = {}
-    request['table'] = self.serialize()
+    if data._use_cloud_api:  # pylint: disable=protected-access
+      request['table'] = self
+    else:
+      request['table'] = self.serialize()
     if filetype is not None:
       request['format'] = filetype.upper()
     if filename is not None:

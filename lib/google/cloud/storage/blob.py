@@ -29,10 +29,12 @@ import base64
 import copy
 import hashlib
 from io import BytesIO
+import logging
 import mimetypes
 import os
-import time
+import re
 import warnings
+import six
 
 from six.moves.urllib.parse import parse_qsl
 from six.moves.urllib.parse import quote
@@ -51,12 +53,16 @@ from google.resumable_media.requests import ResumableUpload
 from google.api_core.iam import Policy
 from google.cloud import exceptions
 from google.cloud._helpers import _bytes_to_unicode
+from google.cloud._helpers import _datetime_to_rfc3339
 from google.cloud._helpers import _rfc3339_to_datetime
 from google.cloud._helpers import _to_bytes
 from google.cloud.exceptions import NotFound
-from google.cloud.storage._helpers import _get_storage_host
+from google.cloud.storage._helpers import _add_generation_match_parameters
 from google.cloud.storage._helpers import _PropertyMixin
 from google.cloud.storage._helpers import _scalar_property
+from google.cloud.storage._helpers import _bucket_bound_hostname_url
+from google.cloud.storage._helpers import _convert_to_timestamp
+from google.cloud.storage._helpers import _raise_if_more_than_one_set
 from google.cloud.storage._signing import generate_signed_url_v2
 from google.cloud.storage._signing import generate_signed_url_v4
 from google.cloud.storage.acl import ACL
@@ -69,12 +75,11 @@ from google.cloud.storage.constants import NEARLINE_STORAGE_CLASS
 from google.cloud.storage.constants import REGIONAL_LEGACY_STORAGE_CLASS
 from google.cloud.storage.constants import STANDARD_STORAGE_CLASS
 
-_STORAGE_HOST = _get_storage_host()
 
 _API_ACCESS_ENDPOINT = "https://storage.googleapis.com"
 _DEFAULT_CONTENT_TYPE = u"application/octet-stream"
-_DOWNLOAD_URL_TEMPLATE = _STORAGE_HOST + u"/download/storage/v1{path}?alt=media"
-_BASE_UPLOAD_TEMPLATE = _STORAGE_HOST + u"/upload/storage/v1{bucket_path}/o?uploadType="
+_DOWNLOAD_URL_TEMPLATE = u"{hostname}/download/storage/v1{path}?alt=media"
+_BASE_UPLOAD_TEMPLATE = u"{hostname}/upload/storage/v1{bucket_path}/o?uploadType="
 _MULTIPART_URL_TEMPLATE = _BASE_UPLOAD_TEMPLATE + u"multipart"
 _RESUMABLE_URL_TEMPLATE = _BASE_UPLOAD_TEMPLATE + u"resumable"
 # NOTE: "acl" is also writeable but we defer ACL management to
@@ -104,6 +109,11 @@ _NUM_RETRIES_MESSAGE = (
 _READ_LESS_THAN_SIZE = (
     "Size {:d} was specified but the file-like object only had " "{:d} bytes remaining."
 )
+_CHUNKED_DOWNLOAD_CHECKSUM_MESSAGE = (
+    "A checksum of type `{}` was requested, but checksumming is not available "
+    "for downloads when chunk_size is set."
+)
+
 
 _DEFAULT_CHUNKSIZE = 104857600  # 1024 * 1024 B * 100 = 100 MB
 _MAX_MULTIPART_SIZE = 8388608  # 8 MB
@@ -174,16 +184,19 @@ class Blob(_PropertyMixin):
         kms_key_name=None,
         generation=None,
     ):
+        """
+        property :attr:`name`
+            Get the blob's name.
+        """
         name = _bytes_to_unicode(name)
         super(Blob, self).__init__(name=name)
 
         self.chunk_size = chunk_size  # Check that setter accepts value.
         self._bucket = bucket
         self._acl = ObjectACL(self)
-        if encryption_key is not None and kms_key_name is not None:
-            raise ValueError(
-                "Pass at most one of 'encryption_key' " "and 'kms_key_name'"
-            )
+        _raise_if_more_than_one_set(
+            encryption_key=encryption_key, kms_key_name=kms_key_name
+        )
 
         self._encryption_key = encryption_key
 
@@ -394,7 +407,7 @@ class Blob(_PropertyMixin):
             >>> from google.cloud import storage
             >>> client = storage.Client()
             >>> bucket = client.get_bucket('my-bucket-name')
-            >>> blob = client.get_blob('my-blob-name')
+            >>> blob = bucket.get_blob('my-blob-name')
             >>> url = blob.generate_signed_url(expiration='url-expiration-time', bucket_bound_hostname='mydomain.tld',
             >>>                                  version='v4')
             >>> url = blob.generate_signed_url(expiration='url-expiration-time', bucket_bound_hostname='mydomain.tld',
@@ -405,7 +418,9 @@ class Blob(_PropertyMixin):
         log in.
 
         :type expiration: Union[Integer, datetime.datetime, datetime.timedelta]
-        :param expiration: Point in time when the signed URL should expire.
+        :param expiration: Point in time when the signed URL should expire. If
+                           a ``datetime`` instance is passed without an explicit
+                           ``tzinfo`` set,  it will be assumed to be ``UTC``.
 
         :type api_access_endpoint: str
         :param api_access_endpoint: (Optional) URI base.
@@ -512,12 +527,9 @@ class Blob(_PropertyMixin):
                 bucket_name=self.bucket.name
             )
         elif bucket_bound_hostname:
-            if ":" in bucket_bound_hostname:
-                api_access_endpoint = bucket_bound_hostname
-            else:
-                api_access_endpoint = "{scheme}://{bucket_bound_hostname}".format(
-                    scheme=scheme, bucket_bound_hostname=bucket_bound_hostname
-                )
+            api_access_endpoint = _bucket_bound_hostname_url(
+                bucket_bound_hostname, scheme
+            )
         else:
             resource = "/{bucket_name}/{quoted_name}".format(
                 bucket_name=self.bucket.name, quoted_name=quoted_name
@@ -563,7 +575,15 @@ class Blob(_PropertyMixin):
             access_token=access_token,
         )
 
-    def exists(self, client=None, timeout=_DEFAULT_TIMEOUT):
+    def exists(
+        self,
+        client=None,
+        timeout=_DEFAULT_TIMEOUT,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+    ):
         """Determines whether or not this blob exists.
 
         If :attr:`user_project` is set on the bucket, bills the API request
@@ -580,6 +600,27 @@ class Blob(_PropertyMixin):
             Can also be passed as a tuple (connect_timeout, read_timeout).
             See :meth:`requests.Session.request` documentation for details.
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
         :rtype: bool
         :returns: True if the blob exists in Cloud Storage.
         """
@@ -589,6 +630,13 @@ class Blob(_PropertyMixin):
         query_params = self._query_params
         query_params["fields"] = "name"
 
+        _add_generation_match_parameters(
+            query_params,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+        )
         try:
             # We intentionally pass `_target_object=None` since fields=name
             # would limit the local properties.
@@ -606,7 +654,15 @@ class Blob(_PropertyMixin):
         except NotFound:
             return False
 
-    def delete(self, client=None, timeout=_DEFAULT_TIMEOUT):
+    def delete(
+        self,
+        client=None,
+        timeout=_DEFAULT_TIMEOUT,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+    ):
         """Deletes a blob from Cloud Storage.
 
         If :attr:`user_project` is set on the bucket, bills the API request
@@ -614,8 +670,9 @@ class Blob(_PropertyMixin):
 
         :type client: :class:`~google.cloud.storage.client.Client` or
                       ``NoneType``
-        :param client: (Optional) The client to use.  If not passed, falls back
+        :param client: (Optional) The client to use. If not passed, falls back
                        to the ``client`` stored on the blob's bucket.
+
         :type timeout: float or tuple
         :param timeout: (Optional) The amount of time, in seconds, to wait
             for the server response.
@@ -623,12 +680,40 @@ class Blob(_PropertyMixin):
             Can also be passed as a tuple (connect_timeout, read_timeout).
             See :meth:`requests.Session.request` documentation for details.
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
         :raises: :class:`google.cloud.exceptions.NotFound`
                  (propagated from
                  :meth:`google.cloud.storage.bucket.Bucket.delete_blob`).
         """
         self.bucket.delete_blob(
-            self.name, client=client, generation=self.generation, timeout=timeout
+            self.name,
+            client=client,
+            generation=self.generation,
+            timeout=timeout,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
         )
 
     def _get_transport(self, client):
@@ -646,19 +731,51 @@ class Blob(_PropertyMixin):
         client = self._require_client(client)
         return client._http
 
-    def _get_download_url(self):
+    def _get_download_url(
+        self,
+        client,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+    ):
         """Get the download URL for the current blob.
 
         If the ``media_link`` has been loaded, it will be used, otherwise
         the URL will be constructed from the current blob's path (and possibly
         generation) to avoid a round trip.
 
+        :type client: :class:`~google.cloud.storage.client.Client`
+        :param client: The client to use.
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
         :rtype: str
         :returns: The download URL for the current blob.
         """
         name_value_pairs = []
         if self.media_link is None:
-            base_url = _DOWNLOAD_URL_TEMPLATE.format(path=self.path)
+            base_url = _DOWNLOAD_URL_TEMPLATE.format(
+                hostname=client._connection.API_BASE_URL, path=self.path
+            )
             if self.generation is not None:
                 name_value_pairs.append(("generation", "{:d}".format(self.generation)))
         else:
@@ -667,7 +784,43 @@ class Blob(_PropertyMixin):
         if self.user_project is not None:
             name_value_pairs.append(("userProject", self.user_project))
 
+        _add_generation_match_parameters(
+            name_value_pairs,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+        )
         return _add_query_parameters(base_url, name_value_pairs)
+
+    def _extract_headers_from_download(self, response):
+        """Extract headers from a non-chunked request's http object.
+
+        This avoids the need to make a second request for commonly used
+        headers.
+
+        :type response:
+            :class requests.models.Response
+        :param response: The server response from downloading a non-chunked file
+        """
+        self.content_encoding = response.headers.get("Content-Encoding", None)
+        self.content_type = response.headers.get("Content-Type", None)
+        self.cache_control = response.headers.get("Cache-Control", None)
+        self.storage_class = response.headers.get("X-Goog-Storage-Class", None)
+        self.content_language = response.headers.get("Content-Language", None)
+        #  'X-Goog-Hash': 'crc32c=4gcgLQ==,md5=CS9tHYTtyFntzj7B9nkkJQ==',
+        x_goog_hash = response.headers.get("X-Goog-Hash", "")
+
+        if x_goog_hash:
+            digests = {}
+            for encoded_digest in x_goog_hash.split(","):
+                match = re.match(r"(crc32c|md5)=([\w\d/\+/]+={0,3})", encoded_digest)
+                if match:
+                    method, digest = match.groups()
+                    digests[method] = digest
+
+            self.crc32c = digests.get("crc32c", None)
+            self.md5_hash = digests.get("md5", None)
 
     def _do_download(
         self,
@@ -678,6 +831,8 @@ class Blob(_PropertyMixin):
         start=None,
         end=None,
         raw_download=False,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum="md5",
     ):
         """Perform a download without any error handling.
 
@@ -707,6 +862,25 @@ class Blob(_PropertyMixin):
         :type raw_download: bool
         :param raw_download:
             (Optional) If true, download the object without any expansion.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify the integrity
+            of the object. The response headers must contain a checksum of the
+            requested type. If the headers lack an appropriate checksum (for
+            instance in the case of transcoded or ranged downloads where the
+            remote service does not know the correct checksum, including
+            downloads where chunk_size is set) an INFO-level log will be
+            emitted. Supported values are "md5", "crc32c" and None. The default
+            is "md5".
         """
         if self.chunk_size is None:
             if raw_download:
@@ -715,11 +889,20 @@ class Blob(_PropertyMixin):
                 klass = Download
 
             download = klass(
-                download_url, stream=file_obj, headers=headers, start=start, end=end
+                download_url,
+                stream=file_obj,
+                headers=headers,
+                start=start,
+                end=end,
+                checksum=checksum,
             )
-            download.consume(transport)
-
+            response = download.consume(transport, timeout=timeout)
+            self._extract_headers_from_download(response)
         else:
+
+            if checksum:
+                msg = _CHUNKED_DOWNLOAD_CHECKSUM_MESSAGE.format(checksum)
+                logging.info(msg)
 
             if raw_download:
                 klass = RawChunkedDownload
@@ -736,10 +919,21 @@ class Blob(_PropertyMixin):
             )
 
             while not download.finished:
-                download.consume_next_chunk(transport)
+                download.consume_next_chunk(transport, timeout=timeout)
 
     def download_to_file(
-        self, file_obj, client=None, start=None, end=None, raw_download=False
+        self,
+        file_obj,
+        client=None,
+        start=None,
+        end=None,
+        raw_download=False,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum="md5",
     ):
         """Download the contents of this blob into a file-like object.
 
@@ -758,6 +952,10 @@ class Blob(_PropertyMixin):
 
         The ``encryption_key`` should be a str or bytes with a length of at
         least 32.
+
+        If the :attr:`chunk_size` of a current blob is `None`, will download data
+        in single download request otherwise it will download the :attr:`chunk_size`
+        of data in each request.
 
         For more fine-grained control over the download process, check out
         `google-resumable-media`_. For example, this library allows
@@ -784,22 +982,88 @@ class Blob(_PropertyMixin):
         :param raw_download:
             (Optional) If true, download the object without any expansion.
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify the integrity
+            of the object. The response headers must contain a checksum of the
+            requested type. If the headers lack an appropriate checksum (for
+            instance in the case of transcoded or ranged downloads where the
+            remote service does not know the correct checksum, including
+            downloads where chunk_size is set) an INFO-level log will be
+            emitted. Supported values are "md5", "crc32c" and None. The default
+            is "md5".
+
         :raises: :class:`google.cloud.exceptions.NotFound`
         """
-        download_url = self._get_download_url()
+        client = self._require_client(client)
+
+        download_url = self._get_download_url(
+            client,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+        )
         headers = _get_encryption_headers(self._encryption_key)
         headers["accept-encoding"] = "gzip"
 
         transport = self._get_transport(client)
         try:
             self._do_download(
-                transport, file_obj, download_url, headers, start, end, raw_download
+                transport,
+                file_obj,
+                download_url,
+                headers,
+                start,
+                end,
+                raw_download,
+                timeout=timeout,
+                checksum=checksum,
             )
         except resumable_media.InvalidResponse as exc:
             _raise_from_invalid_response(exc)
 
     def download_to_filename(
-        self, filename, client=None, start=None, end=None, raw_download=False
+        self,
+        filename,
+        client=None,
+        start=None,
+        end=None,
+        raw_download=False,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum="md5",
     ):
         """Download the contents of this blob into a named file.
 
@@ -811,7 +1075,7 @@ class Blob(_PropertyMixin):
 
         :type client: :class:`~google.cloud.storage.client.Client` or
                       ``NoneType``
-        :param client: (Optional) The client to use.  If not passed, falls back
+        :param client: (Optional) The client to use. If not passed, falls back
                        to the ``client`` stored on the blob's bucket.
 
         :type start: int
@@ -823,6 +1087,45 @@ class Blob(_PropertyMixin):
         :type raw_download: bool
         :param raw_download:
             (Optional) If true, download the object without any expansion.
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify the integrity
+            of the object. The response headers must contain a checksum of the
+            requested type. If the headers lack an appropriate checksum (for
+            instance in the case of transcoded or ranged downloads where the
+            remote service does not know the correct checksum, including
+            downloads where chunk_size is set) an INFO-level log will be
+            emitted. Supported values are "md5", "crc32c" and None. The default
+            is "md5".
 
         :raises: :class:`google.cloud.exceptions.NotFound`
         """
@@ -834,6 +1137,12 @@ class Blob(_PropertyMixin):
                     start=start,
                     end=end,
                     raw_download=raw_download,
+                    if_generation_match=if_generation_match,
+                    if_generation_not_match=if_generation_not_match,
+                    if_metageneration_match=if_metageneration_match,
+                    if_metageneration_not_match=if_metageneration_not_match,
+                    timeout=timeout,
+                    checksum=checksum,
                 )
         except resumable_media.DataCorruption:
             # Delete the corrupt downloaded file.
@@ -842,10 +1151,25 @@ class Blob(_PropertyMixin):
 
         updated = self.updated
         if updated is not None:
-            mtime = time.mktime(updated.timetuple())
+            if six.PY2:
+                mtime = _convert_to_timestamp(updated)
+            else:
+                mtime = updated.timestamp()
             os.utime(file_obj.name, (mtime, mtime))
 
-    def download_as_string(self, client=None, start=None, end=None, raw_download=False):
+    def download_as_bytes(
+        self,
+        client=None,
+        start=None,
+        end=None,
+        raw_download=False,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum="md5",
+    ):
         """Download the contents of this blob as a bytes object.
 
         If :attr:`user_project` is set on the bucket, bills the API request
@@ -853,7 +1177,7 @@ class Blob(_PropertyMixin):
 
         :type client: :class:`~google.cloud.storage.client.Client` or
                       ``NoneType``
-        :param client: (Optional) The client to use.  If not passed, falls back
+        :param client: (Optional) The client to use. If not passed, falls back
                        to the ``client`` stored on the blob's bucket.
 
         :type start: int
@@ -866,8 +1190,48 @@ class Blob(_PropertyMixin):
         :param raw_download:
             (Optional) If true, download the object without any expansion.
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify the integrity
+            of the object. The response headers must contain a checksum of the
+            requested type. If the headers lack an appropriate checksum (for
+            instance in the case of transcoded or ranged downloads where the
+            remote service does not know the correct checksum, including
+            downloads where chunk_size is set) an INFO-level log will be
+            emitted. Supported values are "md5", "crc32c" and None. The default
+            is "md5".
+
         :rtype: bytes
         :returns: The data stored in this blob.
+
         :raises: :class:`google.cloud.exceptions.NotFound`
         """
         string_buffer = BytesIO()
@@ -877,8 +1241,188 @@ class Blob(_PropertyMixin):
             start=start,
             end=end,
             raw_download=raw_download,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+            timeout=timeout,
+            checksum=checksum,
         )
         return string_buffer.getvalue()
+
+    def download_as_string(
+        self,
+        client=None,
+        start=None,
+        end=None,
+        raw_download=False,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+    ):
+        """(Deprecated) Download the contents of this blob as a bytes object.
+
+        If :attr:`user_project` is set on the bucket, bills the API request
+        to that project.
+
+        .. note::
+           Deprecated alias for :meth:`download_as_bytes`.
+
+        :type client: :class:`~google.cloud.storage.client.Client` or
+                      ``NoneType``
+        :param client: (Optional) The client to use. If not passed, falls back
+                       to the ``client`` stored on the blob's bucket.
+
+        :type start: int
+        :param start: (Optional) The first byte in a range to be downloaded.
+
+        :type end: int
+        :param end: (Optional) The last byte in a range to be downloaded.
+
+        :type raw_download: bool
+        :param raw_download:
+            (Optional) If true, download the object without any expansion.
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :rtype: bytes
+        :returns: The data stored in this blob.
+
+        :raises: :class:`google.cloud.exceptions.NotFound`
+        """
+        warnings.warn(
+            "Blob.download_as_string() is deprecated and will be removed in future."
+            "Use Blob.download_as_bytes() instead.",
+            PendingDeprecationWarning,
+            stacklevel=1,
+        )
+        return self.download_as_bytes(
+            client=client,
+            start=start,
+            end=end,
+            raw_download=raw_download,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+            timeout=timeout,
+        )
+
+    def download_as_text(
+        self,
+        client=None,
+        start=None,
+        end=None,
+        raw_download=False,
+        encoding="utf-8",
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+    ):
+        """Download the contents of this blob as a string.
+
+        If :attr:`user_project` is set on the bucket, bills the API request
+        to that project.
+
+        :type client: :class:`~google.cloud.storage.client.Client` or
+                      ``NoneType``
+        :param client: (Optional) The client to use. If not passed, falls back
+                       to the ``client`` stored on the blob's bucket.
+
+        :type start: int
+        :param start: (Optional) The first byte in a range to be downloaded.
+
+        :type end: int
+        :param end: (Optional) The last byte in a range to be downloaded.
+
+        :type raw_download: bool
+        :param raw_download:
+            (Optional) If true, download the object without any expansion.
+
+        :type encoding: str
+        :param encoding: (Optional) The data of the blob will be decoded by
+                         encoding method.  Defaults to UTF-8. Apply only
+                         if the value of ``blob.content_encoding`` is None.
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :rtype: text
+        :returns: The data stored in this blob.
+
+        :raises: :class:`google.cloud.exceptions.NotFound`
+        """
+        data = self.download_as_bytes(
+            client=client,
+            start=start,
+            end=end,
+            raw_download=raw_download,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+            timeout=timeout,
+        )
+
+        if self.content_encoding:
+            return data.decode(self.content_encoding)
+        else:
+            return data.decode(encoding)
 
     def _get_content_type(self, content_type, filename=None):
         """Determine the content type from the current object.
@@ -966,7 +1510,19 @@ class Blob(_PropertyMixin):
         return headers, object_metadata, content_type
 
     def _do_multipart_upload(
-        self, client, stream, content_type, size, num_retries, predefined_acl
+        self,
+        client,
+        stream,
+        content_type,
+        size,
+        num_retries,
+        predefined_acl,
+        if_generation_match,
+        if_generation_not_match,
+        if_metageneration_match,
+        if_metageneration_not_match,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Perform a multipart upload.
 
@@ -999,6 +1555,43 @@ class Blob(_PropertyMixin):
         :type predefined_acl: str
         :param predefined_acl: (Optional) Predefined access control list
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. The request metadata will be amended
+            to include the computed value. Using this option will override a
+            manually-set checksum value. Supported values are "md5",
+            "crc32c" and None. The default is None.
+
         :rtype: :class:`~requests.Response`
         :returns: The "200 OK" response object returned after the multipart
                   upload request.
@@ -1017,27 +1610,53 @@ class Blob(_PropertyMixin):
         info = self._get_upload_arguments(content_type)
         headers, object_metadata, content_type = info
 
-        base_url = _MULTIPART_URL_TEMPLATE.format(bucket_path=self.bucket.path)
+        base_url = _MULTIPART_URL_TEMPLATE.format(
+            hostname=self.client._connection.API_BASE_URL, bucket_path=self.bucket.path
+        )
         name_value_pairs = []
 
         if self.user_project is not None:
             name_value_pairs.append(("userProject", self.user_project))
 
-        if self.kms_key_name is not None:
+        # When a Customer Managed Encryption Key is used to encrypt Cloud Storage object
+        # at rest, object resource metadata will store the version of the Key Management
+        # Service cryptographic material. If a Blob instance with KMS Key metadata set is
+        # used to upload a new version of the object then the existing kmsKeyName version
+        # value can't be used in the upload request and the client instead ignores it.
+        if (
+            self.kms_key_name is not None
+            and "cryptoKeyVersions" not in self.kms_key_name
+        ):
             name_value_pairs.append(("kmsKeyName", self.kms_key_name))
 
         if predefined_acl is not None:
             name_value_pairs.append(("predefinedAcl", predefined_acl))
 
+        if if_generation_match is not None:
+            name_value_pairs.append(("ifGenerationMatch", if_generation_match))
+
+        if if_generation_not_match is not None:
+            name_value_pairs.append(("ifGenerationNotMatch", if_generation_not_match))
+
+        if if_metageneration_match is not None:
+            name_value_pairs.append(("ifMetagenerationMatch", if_metageneration_match))
+
+        if if_metageneration_not_match is not None:
+            name_value_pairs.append(
+                ("ifMetaGenerationNotMatch", if_metageneration_not_match)
+            )
+
         upload_url = _add_query_parameters(base_url, name_value_pairs)
-        upload = MultipartUpload(upload_url, headers=headers)
+        upload = MultipartUpload(upload_url, headers=headers, checksum=checksum)
 
         if num_retries is not None:
             upload._retry_strategy = resumable_media.RetryStrategy(
                 max_retries=num_retries
             )
 
-        response = upload.transmit(transport, data, object_metadata, content_type)
+        response = upload.transmit(
+            transport, data, object_metadata, content_type, timeout=timeout
+        )
 
         return response
 
@@ -1051,6 +1670,12 @@ class Blob(_PropertyMixin):
         predefined_acl=None,
         extra_headers=None,
         chunk_size=None,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Initiate a resumable upload.
 
@@ -1092,7 +1717,48 @@ class Blob(_PropertyMixin):
             (Optional) Chunk size to use when creating a
             :class:`~google.resumable_media.requests.ResumableUpload`.
             If not passed, will fall back to the chunk size on the
-            current blob.
+            current blob, if the chunk size of a current blob is also
+            `None`, will set the default value.
+            The default value of ``chunk_size`` is 100 MB.
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. After the upload is complete, the
+            server-computed checksum of the resulting object will be checked
+            and google.resumable_media.common.DataCorruption will be raised on
+            a mismatch. On a validation failure, the client will attempt to
+            delete the uploaded object automatically. Supported values
+            are "md5", "crc32c" and None. The default is None.
 
         :rtype: tuple
         :returns:
@@ -1113,20 +1779,46 @@ class Blob(_PropertyMixin):
         if extra_headers is not None:
             headers.update(extra_headers)
 
-        base_url = _RESUMABLE_URL_TEMPLATE.format(bucket_path=self.bucket.path)
+        base_url = _RESUMABLE_URL_TEMPLATE.format(
+            hostname=self.client._connection.API_BASE_URL, bucket_path=self.bucket.path
+        )
         name_value_pairs = []
 
         if self.user_project is not None:
             name_value_pairs.append(("userProject", self.user_project))
 
-        if self.kms_key_name is not None:
+        # When a Customer Managed Encryption Key is used to encrypt Cloud Storage object
+        # at rest, object resource metadata will store the version of the Key Management
+        # Service cryptographic material. If a Blob instance with KMS Key metadata set is
+        # used to upload a new version of the object then the existing kmsKeyName version
+        # value can't be used in the upload request and the client instead ignores it.
+        if (
+            self.kms_key_name is not None
+            and "cryptoKeyVersions" not in self.kms_key_name
+        ):
             name_value_pairs.append(("kmsKeyName", self.kms_key_name))
 
         if predefined_acl is not None:
             name_value_pairs.append(("predefinedAcl", predefined_acl))
 
+        if if_generation_match is not None:
+            name_value_pairs.append(("ifGenerationMatch", if_generation_match))
+
+        if if_generation_not_match is not None:
+            name_value_pairs.append(("ifGenerationNotMatch", if_generation_not_match))
+
+        if if_metageneration_match is not None:
+            name_value_pairs.append(("ifMetagenerationMatch", if_metageneration_match))
+
+        if if_metageneration_not_match is not None:
+            name_value_pairs.append(
+                ("ifMetaGenerationNotMatch", if_metageneration_not_match)
+            )
+
         upload_url = _add_query_parameters(base_url, name_value_pairs)
-        upload = ResumableUpload(upload_url, chunk_size, headers=headers)
+        upload = ResumableUpload(
+            upload_url, chunk_size, headers=headers, checksum=checksum
+        )
 
         if num_retries is not None:
             upload._retry_strategy = resumable_media.RetryStrategy(
@@ -1140,16 +1832,30 @@ class Blob(_PropertyMixin):
             content_type,
             total_bytes=size,
             stream_final=False,
+            timeout=timeout,
         )
 
         return upload, transport
 
     def _do_resumable_upload(
-        self, client, stream, content_type, size, num_retries, predefined_acl
+        self,
+        client,
+        stream,
+        content_type,
+        size,
+        num_retries,
+        predefined_acl,
+        if_generation_match,
+        if_generation_not_match,
+        if_metageneration_match,
+        if_metageneration_not_match,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Perform a resumable upload.
 
         Assumes ``chunk_size`` is not :data:`None` on the current blob.
+        The default value of ``chunk_size`` is 100 MB.
 
         The content type of the upload will be determined in order
         of precedence:
@@ -1180,6 +1886,45 @@ class Blob(_PropertyMixin):
         :type predefined_acl: str
         :param predefined_acl: (Optional) Predefined access control list
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. After the upload is complete, the
+            server-computed checksum of the resulting object will be checked
+            and google.resumable_media.common.DataCorruption will be raised on
+            a mismatch. On a validation failure, the client will attempt to
+            delete the uploaded object automatically. Supported values
+            are "md5", "crc32c" and None. The default is None.
+
         :rtype: :class:`~requests.Response`
         :returns: The "200 OK" response object returned after the final chunk
                   is uploaded.
@@ -1191,19 +1936,42 @@ class Blob(_PropertyMixin):
             size,
             num_retries,
             predefined_acl=predefined_acl,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+            timeout=timeout,
+            checksum=checksum,
         )
 
         while not upload.finished:
-            response = upload.transmit_next_chunk(transport)
+            try:
+                response = upload.transmit_next_chunk(transport, timeout=timeout)
+            except resumable_media.DataCorruption:
+                # Attempt to delete the corrupted object.
+                self.delete()
+                raise
 
         return response
 
     def _do_upload(
-        self, client, stream, content_type, size, num_retries, predefined_acl
+        self,
+        client,
+        stream,
+        content_type,
+        size,
+        num_retries,
+        predefined_acl,
+        if_generation_match,
+        if_generation_not_match,
+        if_metageneration_match,
+        if_metageneration_not_match,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Determine an upload strategy and then perform the upload.
 
-        If the size of the data to be uploaded exceeds 5 MB a resumable media
+        If the size of the data to be uploaded exceeds 8 MB a resumable media
         request will be used, otherwise the content and the metadata will be
         uploaded in a single multipart upload request.
 
@@ -1236,6 +2004,48 @@ class Blob(_PropertyMixin):
         :type predefined_acl: str
         :param predefined_acl: (Optional) Predefined access control list
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. If the upload is completed in a single
+            request, the checksum will be entirely precomputed and the remote
+            server will handle verification and error handling. If the upload
+            is too large and must be transmitted in multiple requests, the
+            checksum will be incrementally computed and the client will handle
+            verification and error handling, raising
+            google.resumable_media.common.DataCorruption on a mismatch and
+            attempting to delete the corrupted file. Supported values are
+            "md5", "crc32c" and None. The default is None.
+
         :rtype: dict
         :returns: The parsed JSON from the "200 OK" response. This will be the
                   **only** response in the multipart case and it will be the
@@ -1243,11 +2053,33 @@ class Blob(_PropertyMixin):
         """
         if size is not None and size <= _MAX_MULTIPART_SIZE:
             response = self._do_multipart_upload(
-                client, stream, content_type, size, num_retries, predefined_acl
+                client,
+                stream,
+                content_type,
+                size,
+                num_retries,
+                predefined_acl,
+                if_generation_match,
+                if_generation_not_match,
+                if_metageneration_match,
+                if_metageneration_not_match,
+                timeout=timeout,
+                checksum=checksum,
             )
         else:
             response = self._do_resumable_upload(
-                client, stream, content_type, size, num_retries, predefined_acl
+                client,
+                stream,
+                content_type,
+                size,
+                num_retries,
+                predefined_acl,
+                if_generation_match,
+                if_generation_not_match,
+                if_metageneration_match,
+                if_metageneration_not_match,
+                timeout=timeout,
+                checksum=checksum,
             )
 
         return response.json()
@@ -1261,6 +2093,12 @@ class Blob(_PropertyMixin):
         num_retries=None,
         client=None,
         predefined_acl=None,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Upload the contents of this blob from a file-like object.
 
@@ -1289,6 +2127,10 @@ class Blob(_PropertyMixin):
 
         The ``encryption_key`` should be a str or bytes with a length of at
         least 32.
+
+        If the size of the data to be uploaded exceeds 8 MB a resumable media
+        request will be used, otherwise the content and the metadata will be
+        uploaded in a single multipart upload request.
 
         For more fine-grained over the upload process, check out
         `google-resumable-media`_.
@@ -1322,6 +2164,48 @@ class Blob(_PropertyMixin):
         :type predefined_acl: str
         :param predefined_acl: (Optional) Predefined access control list
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. If the upload is completed in a single
+            request, the checksum will be entirely precomputed and the remote
+            server will handle verification and error handling. If the upload
+            is too large and must be transmitted in multiple requests, the
+            checksum will be incrementally computed and the client will handle
+            verification and error handling, raising
+            google.resumable_media.common.DataCorruption on a mismatch and
+            attempting to delete the corrupted file. Supported values are
+            "md5", "crc32c" and None. The default is None.
+
         :raises: :class:`~google.cloud.exceptions.GoogleCloudError`
                  if the upload response returns an error status.
 
@@ -1337,14 +2221,35 @@ class Blob(_PropertyMixin):
 
         try:
             created_json = self._do_upload(
-                client, file_obj, content_type, size, num_retries, predefined_acl
+                client,
+                file_obj,
+                content_type,
+                size,
+                num_retries,
+                predefined_acl,
+                if_generation_match,
+                if_generation_not_match,
+                if_metageneration_match,
+                if_metageneration_not_match,
+                timeout=timeout,
+                checksum=checksum,
             )
             self._set_properties(created_json)
         except resumable_media.InvalidResponse as exc:
             _raise_from_invalid_response(exc)
 
     def upload_from_filename(
-        self, filename, content_type=None, client=None, predefined_acl=None
+        self,
+        filename,
+        content_type=None,
+        client=None,
+        predefined_acl=None,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Upload this blob's contents from the content of a named file.
 
@@ -1382,6 +2287,48 @@ class Blob(_PropertyMixin):
 
         :type predefined_acl: str
         :param predefined_acl: (Optional) Predefined access control list
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. If the upload is completed in a single
+            request, the checksum will be entirely precomputed and the remote
+            server will handle verification and error handling. If the upload
+            is too large and must be transmitted in multiple requests, the
+            checksum will be incrementally computed and the client will handle
+            verification and error handling, raising
+            google.resumable_media.common.DataCorruption on a mismatch and
+            attempting to delete the corrupted file. Supported values are
+            "md5", "crc32c" and None. The default is None.
         """
         content_type = self._get_content_type(content_type, filename=filename)
 
@@ -1393,10 +2340,26 @@ class Blob(_PropertyMixin):
                 client=client,
                 size=total_bytes,
                 predefined_acl=predefined_acl,
+                if_generation_match=if_generation_match,
+                if_generation_not_match=if_generation_not_match,
+                if_metageneration_match=if_metageneration_match,
+                if_metageneration_not_match=if_metageneration_not_match,
+                timeout=timeout,
+                checksum=checksum,
             )
 
     def upload_from_string(
-        self, data, content_type="text/plain", client=None, predefined_acl=None
+        self,
+        data,
+        content_type="text/plain",
+        client=None,
+        predefined_acl=None,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Upload contents of this blob from the provided string.
 
@@ -1429,6 +2392,48 @@ class Blob(_PropertyMixin):
 
         :type predefined_acl: str
         :param predefined_acl: (Optional) Predefined access control list
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Make the operation conditional on whether
+                                        the blob's current generation does not match the given
+                                        value. If no live blob exists, the precondition fails.
+                                        Setting to 0 makes the operation succeed only if there
+                                        is a live version of the blob.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. If the upload is completed in a single
+            request, the checksum will be entirely precomputed and the remote
+            server will handle verification and error handling. If the upload
+            is too large and must be transmitted in multiple requests, the
+            checksum will be incrementally computed and the client will handle
+            verification and error handling, raising
+            google.resumable_media.common.DataCorruption on a mismatch and
+            attempting to delete the corrupted file. Supported values are
+            "md5", "crc32c" and None. The default is None.
         """
         data = _to_bytes(data, encoding="utf-8")
         string_buffer = BytesIO(data)
@@ -1438,10 +2443,21 @@ class Blob(_PropertyMixin):
             content_type=content_type,
             client=client,
             predefined_acl=predefined_acl,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+            timeout=timeout,
         )
 
     def create_resumable_upload_session(
-        self, content_type=None, size=None, origin=None, client=None
+        self,
+        content_type=None,
+        size=None,
+        origin=None,
+        client=None,
+        timeout=_DEFAULT_TIMEOUT,
+        checksum=None,
     ):
         """Create a resumable upload session.
 
@@ -1499,6 +2515,24 @@ class Blob(_PropertyMixin):
         :param client: (Optional) The client to use.  If not passed, falls back
                        to the ``client`` stored on the blob's bucket.
 
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
+
+        :type checksum: str
+        :param checksum:
+            (Optional) The type of checksum to compute to verify
+            the integrity of the object. After the upload is complete, the
+            server-computed checksum of the resulting object will be checked
+            and google.resumable_media.common.DataCorruption will be raised on
+            a mismatch. On a validation failure, the client will attempt to
+            delete the uploaded object automatically. Supported values
+            are "md5", "crc32c" and None. The default is None.
+
         :rtype: str
         :returns: The resumable upload session URL. The upload can be
                   completed by making an HTTP PUT request with the
@@ -1527,6 +2561,8 @@ class Blob(_PropertyMixin):
                 predefined_acl=None,
                 extra_headers=extra_headers,
                 chunk_size=self._CHUNK_SIZE_MULTIPLE,
+                timeout=timeout,
+                checksum=checksum,
             )
 
             return upload.resumable_url
@@ -1713,34 +2749,104 @@ class Blob(_PropertyMixin):
         self.acl.all().revoke_read()
         self.acl.save(client=client)
 
-    def compose(self, sources, client=None, timeout=_DEFAULT_TIMEOUT):
+    def compose(
+        self,
+        sources,
+        client=None,
+        timeout=_DEFAULT_TIMEOUT,
+        if_generation_match=None,
+        if_metageneration_match=None,
+    ):
         """Concatenate source blobs into this one.
 
         If :attr:`user_project` is set on the bucket, bills the API request
         to that project.
 
         :type sources: list of :class:`Blob`
-        :param sources: blobs whose contents will be composed into this blob.
+        :param sources: Blobs whose contents will be composed into this blob.
 
         :type client: :class:`~google.cloud.storage.client.Client` or
                       ``NoneType``
-        :param client: (Optional) The client to use.  If not passed, falls back
+        :param client: (Optional) The client to use. If not passed, falls back
                        to the ``client`` stored on the blob's bucket.
+
         :type timeout: float or tuple
         :param timeout: (Optional) The amount of time, in seconds, to wait
             for the server response.
 
             Can also be passed as a tuple (connect_timeout, read_timeout).
             See :meth:`requests.Session.request` documentation for details.
+
+        :type if_generation_match: list of long
+        :param if_generation_match: (Optional) Make the operation conditional on whether
+                                    the blob's current generation matches the given value.
+                                    Setting to 0 makes the operation succeed only if there
+                                    are no live versions of the blob. The list must match
+                                    ``sources`` item-to-item.
+
+        :type if_metageneration_match: list of long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether
+                                        the blob's current metageneration matches the given
+                                        value. The list must match ``sources`` item-to-item.
+
+        Example:
+            Compose blobs using generation match preconditions.
+
+            >>> from google.cloud import storage
+            >>> client = storage.Client()
+            >>> bucket = client.bucket("bucket-name")
+
+            >>> blobs = [bucket.blob("blob-name-1"), bucket.blob("blob-name-2")]
+            >>> if_generation_match = [None] * len(blobs)
+            >>> if_generation_match[0] = "123"  # precondition for "blob-name-1"
+
+            >>> composed_blob = bucket.blob("composed-name")
+            >>> composed_blob.compose(blobs, if_generation_match)
         """
+        sources_len = len(sources)
+        if if_generation_match is not None and len(if_generation_match) != sources_len:
+            raise ValueError(
+                "'if_generation_match' length must be the same as 'sources' length"
+            )
+
+        if (
+            if_metageneration_match is not None
+            and len(if_metageneration_match) != sources_len
+        ):
+            raise ValueError(
+                "'if_metageneration_match' length must be the same as 'sources' length"
+            )
+
         client = self._require_client(client)
         query_params = {}
 
         if self.user_project is not None:
             query_params["userProject"] = self.user_project
 
+        source_objects = []
+        for index, source in enumerate(sources):
+            source_object = {"name": source.name}
+
+            preconditions = {}
+            if (
+                if_generation_match is not None
+                and if_generation_match[index] is not None
+            ):
+                preconditions["ifGenerationMatch"] = if_generation_match[index]
+
+            if (
+                if_metageneration_match is not None
+                and if_metageneration_match[index] is not None
+            ):
+                preconditions["ifMetagenerationMatch"] = if_metageneration_match[index]
+
+            if preconditions:
+                source_object["objectPreconditions"] = preconditions
+
+            source_objects.append(source_object)
+
         request = {
-            "sourceObjects": [{"name": source.name} for source in sources],
+            "sourceObjects": source_objects,
             "destination": self._properties.copy(),
         }
         api_response = client._connection.api_request(
@@ -1753,7 +2859,21 @@ class Blob(_PropertyMixin):
         )
         self._set_properties(api_response)
 
-    def rewrite(self, source, token=None, client=None, timeout=_DEFAULT_TIMEOUT):
+    def rewrite(
+        self,
+        source,
+        token=None,
+        client=None,
+        timeout=_DEFAULT_TIMEOUT,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        if_source_generation_match=None,
+        if_source_generation_not_match=None,
+        if_source_metageneration_match=None,
+        if_source_metageneration_not_match=None,
+    ):
         """Rewrite source blob into this one.
 
         If :attr:`user_project` is set on the bucket, bills the API request
@@ -1779,6 +2899,63 @@ class Blob(_PropertyMixin):
             Can also be passed as a tuple (connect_timeout, read_timeout).
             See :meth:`requests.Session.request` documentation for details.
 
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Makes the operation
+                                    conditional on whether the destination
+                                    object's current generation matches the
+                                    given value. Setting to 0 makes the
+                                    operation succeed only if there are no
+                                    live versions of the object.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Makes the operation
+                                        conditional on whether the
+                                        destination object's current
+                                        generation does not match the given
+                                        value. If no live object exists,
+                                        the precondition fails. Setting to
+                                        0 makes the operation succeed only
+                                        if there is a live version
+                                        of the object.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Makes the operation
+                                        conditional on whether the
+                                        destination object's current
+                                        metageneration matches the given
+                                        value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Makes the operation
+                                            conditional on whether the
+                                            destination object's current
+                                            metageneration does not match
+                                            the given value.
+
+        :type if_source_generation_match: long
+        :param if_source_generation_match: (Optional) Makes the operation
+                                           conditional on whether the source
+                                           object's generation matches the
+                                           given value.
+
+        :type if_source_generation_not_match: long
+        :param if_source_generation_not_match: (Optional) Makes the operation
+                                               conditional on whether the source
+                                               object's generation does not match
+                                               the given value.
+
+        :type if_source_metageneration_match: long
+        :param if_source_metageneration_match: (Optional) Makes the operation
+                                               conditional on whether the source
+                                               object's current metageneration
+                                               matches the given value.
+
+        :type if_source_metageneration_not_match: long
+        :param if_source_metageneration_not_match: (Optional) Makes the operation
+                                                   conditional on whether the source
+                                                   object's current metageneration
+                                                   does not match the given value.
+
         :rtype: tuple
         :returns: ``(token, bytes_rewritten, total_bytes)``, where ``token``
                   is a rewrite token (``None`` if the rewrite is complete),
@@ -1803,6 +2980,18 @@ class Blob(_PropertyMixin):
         if self.kms_key_name is not None:
             query_params["destinationKmsKeyName"] = self.kms_key_name
 
+        _add_generation_match_parameters(
+            query_params,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+            if_source_generation_match=if_source_generation_match,
+            if_source_generation_not_match=if_source_generation_not_match,
+            if_source_metageneration_match=if_source_metageneration_match,
+            if_source_metageneration_not_match=if_source_metageneration_not_match,
+        )
+
         api_response = client._connection.api_request(
             method="POST",
             path=source.path + "/rewriteTo" + self.path,
@@ -1824,7 +3013,20 @@ class Blob(_PropertyMixin):
 
         return api_response["rewriteToken"], rewritten, size
 
-    def update_storage_class(self, new_class, client=None):
+    def update_storage_class(
+        self,
+        new_class,
+        client=None,
+        if_generation_match=None,
+        if_generation_not_match=None,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+        if_source_generation_match=None,
+        if_source_generation_not_match=None,
+        if_source_metageneration_match=None,
+        if_source_metageneration_not_match=None,
+        timeout=_DEFAULT_TIMEOUT,
+    ):
         """Update blob's storage class via a rewrite-in-place. This helper will
         wait for the rewrite to complete before returning, so it may take some
         time for large files.
@@ -1849,6 +3051,71 @@ class Blob(_PropertyMixin):
         :type client: :class:`~google.cloud.storage.client.Client`
         :param client: (Optional) The client to use.  If not passed, falls back
                        to the ``client`` stored on the blob's bucket.
+
+        :type if_generation_match: long
+        :param if_generation_match: (Optional) Makes the operation
+                                    conditional on whether the destination
+                                    object's current generation matches the
+                                    given value. Setting to 0 makes the
+                                    operation succeed only if there are no
+                                    live versions of the object.
+
+        :type if_generation_not_match: long
+        :param if_generation_not_match: (Optional) Makes the operation
+                                        conditional on whether the
+                                        destination object's current
+                                        generation does not match the given
+                                        value. If no live object exists,
+                                        the precondition fails. Setting to
+                                        0 makes the operation succeed only
+                                        if there is a live version
+                                        of the object.
+
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Makes the operation
+                                        conditional on whether the
+                                        destination object's current
+                                        metageneration matches the given
+                                        value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Makes the operation
+                                            conditional on whether the
+                                            destination object's current
+                                            metageneration does not match
+                                            the given value.
+
+        :type if_source_generation_match: long
+        :param if_source_generation_match: (Optional) Makes the operation
+                                           conditional on whether the source
+                                           object's generation matches the
+                                           given value.
+
+        :type if_source_generation_not_match: long
+        :param if_source_generation_not_match: (Optional) Makes the operation
+                                               conditional on whether the source
+                                               object's generation does not match
+                                               the given value.
+
+        :type if_source_metageneration_match: long
+        :param if_source_metageneration_match: (Optional) Makes the operation
+                                               conditional on whether the source
+                                               object's current metageneration
+                                               matches the given value.
+
+        :type if_source_metageneration_not_match: long
+        :param if_source_metageneration_not_match: (Optional) Makes the operation
+                                                   conditional on whether the source
+                                                   object's current metageneration
+                                                   does not match the given value.
+
+        :type timeout: float or tuple
+        :param timeout:
+            (Optional) The number of seconds the transport should wait for the
+            server response. Depending on the retry strategy, a request may be
+            repeated several times using the same timeout each time.
+            Can also be passed as a tuple (connect_timeout, read_timeout).
+            See :meth:`requests.Session.request` documentation for details.
         """
         if new_class not in self.STORAGE_CLASSES:
             raise ValueError("Invalid storage class: %s" % (new_class,))
@@ -1857,9 +3124,32 @@ class Blob(_PropertyMixin):
         self._patch_property("storageClass", new_class)
 
         # Execute consecutive rewrite operations until operation is done
-        token, _, _ = self.rewrite(self)
+        token, _, _ = self.rewrite(
+            self,
+            if_generation_match=if_generation_match,
+            if_generation_not_match=if_generation_not_match,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+            if_source_generation_match=if_source_generation_match,
+            if_source_generation_not_match=if_source_generation_not_match,
+            if_source_metageneration_match=if_source_metageneration_match,
+            if_source_metageneration_not_match=if_source_metageneration_not_match,
+            timeout=timeout,
+        )
         while token is not None:
-            token, _, _ = self.rewrite(self, token=token)
+            token, _, _ = self.rewrite(
+                self,
+                token=token,
+                if_generation_match=if_generation_match,
+                if_generation_not_match=if_generation_not_match,
+                if_metageneration_match=if_metageneration_match,
+                if_metageneration_not_match=if_metageneration_not_match,
+                if_source_generation_match=if_source_generation_match,
+                if_source_generation_not_match=if_source_generation_not_match,
+                if_source_metageneration_match=if_source_metageneration_match,
+                if_source_metageneration_not_match=if_source_metageneration_not_match,
+                timeout=timeout,
+            )
 
     cache_control = _scalar_property("cacheControl")
     """HTTP 'Cache-Control' header for this object.
@@ -2239,6 +3529,42 @@ class Blob(_PropertyMixin):
         if value is not None:
             return _rfc3339_to_datetime(value)
 
+    @property
+    def custom_time(self):
+        """Retrieve the custom time for the object.
+
+        See https://cloud.google.com/storage/docs/json_api/v1/objects
+
+        :rtype: :class:`datetime.datetime` or ``NoneType``
+        :returns: Datetime object parsed from RFC3339 valid timestamp, or
+                  ``None`` if the blob's resource has not been loaded from
+                  the server (see :meth:`reload`).
+        """
+        value = self._properties.get("customTime")
+        if value is not None:
+            return _rfc3339_to_datetime(value)
+
+    @custom_time.setter
+    def custom_time(self, value):
+        """Set the custom time for the object.
+
+        Once set on the server side object, this value can't be unset, but may
+        only changed to a custom datetime in the future.
+
+        If :attr:`custom_time` must be unset, either perform a rewrite
+        operation or upload the data again.
+
+        See https://cloud.google.com/storage/docs/json_api/v1/objects
+
+        :type value: :class:`datetime.datetime`
+        :param value: (Optional) Set the custom time of blob. Datetime object
+                      parsed from RFC3339 valid timestamp.
+        """
+        if value is not None:
+            value = _datetime_to_rfc3339(value)
+
+        self._properties["customTime"] = value
+
 
 def _get_encryption_headers(key, source=False):
     """Builds customer encryption key headers
@@ -2318,7 +3644,13 @@ def _raise_from_invalid_response(error):
              to the failed status code
     """
     response = error.response
-    error_message = str(error)
+
+    # The 'response.text' gives the actual reason of error, where 'error' gives
+    # the message of expected status code.
+    if response.text:
+        error_message = response.text + ": " + str(error)
+    else:
+        error_message = str(error)
 
     message = u"{method} {url}: {error}".format(
         method=response.request.method, url=response.request.url, error=error_message

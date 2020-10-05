@@ -9,6 +9,7 @@ import mock
 import unittest
 
 import ee
+from ee import _cloud_api_utils
 from ee import apitestcase
 from ee import ee_exception
 from ee import serializer
@@ -60,7 +61,7 @@ class ImageTestCase(apitestcase.ApiTestCase):
     self.assertEqual({'id': 'abcd', 'version': 123}, from_id_and_version.args)
 
     from_variable = ee.Image(ee.CustomFunction.variable(None, 'foo'))
-    self.assertTrue(isinstance(from_variable, ee.Image))
+    self.assertIsInstance(from_variable, ee.Image)
     self.assertEqual({
         'type': 'ArgumentRef',
         'value': 'foo'
@@ -84,7 +85,7 @@ class ImageTestCase(apitestcase.ApiTestCase):
     image.getMapId({'min': 0})
 
     self.assertEqual(
-        ee.Image(1).visualize(min=0).serialize(),
+        ee.Image(1).visualize(min=0).serialize(for_cloud_api=False),
         self.last_mapid_call['data']['image'])
 
   def testCombine(self):
@@ -216,7 +217,7 @@ class ImageTestCase(apitestcase.ApiTestCase):
 
     self.assertEqual('/download', self.last_download_call['url'])
     self.assertEqual({
-        'image': ee.Image(1).serialize(),
+        'image': ee.Image(1).serialize(for_cloud_api=False),
         'json_format': 'v2'
     }, self.last_download_call['data'])
     self.assertEqual('/api/download?docid=1&token=2', url)
@@ -238,7 +239,7 @@ class ImageTestCase(apitestcase.ApiTestCase):
 
     self.assertEqual('/thumb', self.last_thumb_call['url'])
     self.assertEqual({
-        'image': ee.Image(1).serialize(),
+        'image': ee.Image(1).serialize(for_cloud_api=False),
         'json_format': 'v2',
         'size': '13x42',
         'getid': '1',
@@ -253,12 +254,23 @@ class ImageTestCase(apitestcase.ApiTestCase):
         'min': 0
     })
     self.assertEqual(
-        ee.Image(1).visualize(min=0).serialize(),
+        ee.Image(1).visualize(min=0).serialize(for_cloud_api=False),
         self.last_thumb_call['data']['image'])
 
-  def testThumbInCloudApi(self):
-    """Verifies Thumbnail ID and URL generation in the Cloud API."""
-    geo_json = {
+
+class CloudThumbnailAndExportImageTests(apitestcase.ApiTestCase):
+
+  def setUp(self):
+    super(CloudThumbnailAndExportImageTests, self).setUp()
+    self.cloud_api_resource = mock.MagicMock()
+    self.cloud_api_resource.projects().thumbnails().create(
+    ).execute.return_value = {
+        'name': 'thumbName'
+    }
+    self.cloud_api_resource.projects().algorithms().list(
+    ).execute.return_value = apitestcase.BUILTIN_FUNCTIONS
+    self.base_image = ee.Image(1)
+    self.geo_json = {
         'type':
             'Polygon',
         'coordinates': [[
@@ -267,153 +279,420 @@ class ImageTestCase(apitestcase.ApiTestCase):
             [-103.623046875, 41.82045509614031],
         ]],
     }
+    self.expected_geometry = ee.Geometry(self.geo_json, opt_geodesic=False)
 
-    cloud_api_resource = mock.MagicMock()
-    cloud_api_resource.projects().thumbnails().create().execute.return_value = {
-        'name': 'thumbName'
-    }
+  def assertImageEqual(self, expected, actual):
+    self.assertDictEqual(
+        serializer.encode(expected, for_cloud_api=ee.data._use_cloud_api),
+        serializer.encode(actual, for_cloud_api=ee.data._use_cloud_api))
 
-    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
-      url = ee.Image(1).getThumbURL({
+  def testThumb_withDimensionsRegionCrs(self):
+    """Verifies Thumbnail ID and URL generation in the Cloud API."""
+
+    with apitestcase.UsingCloudApi(cloud_api_resource=self.cloud_api_resource):
+      url = self.base_image.getThumbURL({
           'dimensions': [13, 42],
-          'region': geo_json,
+          'region': self.geo_json,
           'crs': 'EPSG:4326',
       })
 
-      self.assertEqual('/v1alpha/thumbName:getPixels', url)
-      _, kwargs = cloud_api_resource.projects().thumbnails().create.call_args
+      self.assertEqual('/%s/thumbName:getPixels' % _cloud_api_utils.VERSION,
+                       url)
+      _, kwargs = self.cloud_api_resource.projects().thumbnails(
+      ).create.call_args
       self.assertEqual(
           kwargs['body']['expression'],
           serializer.encode(
-              ee.Image(1).setDefaultProjection(
+              self.base_image.setDefaultProjection(
                   crs='EPSG:4326',
                   crsTransform=[1, 0, 0, 0, -1, 0]).clipToBoundsAndScale(
-                      geometry=geo_json,
+                      geometry=ee.Geometry(self.geo_json, opt_geodesic=False),
                       width=13,
                       height=42),
               for_cloud_api=True))
       self.assertEqual(kwargs['parent'], 'projects/earthengine-legacy')
 
+  def testThumb_withDimensionsRegionJson(self):
     # Try it with the region as a GeoJSON string.
-    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
-      url = ee.Image(1).getThumbURL({
+    with apitestcase.UsingCloudApi(cloud_api_resource=self.cloud_api_resource):
+      self.base_image.getThumbURL({
           'dimensions': [13, 42],
-          'region': json.dumps(geo_json),
+          'region': json.dumps(self.geo_json),
       })
 
-      _, kwargs = cloud_api_resource.projects().thumbnails().create.call_args
+      _, kwargs = self.cloud_api_resource.projects().thumbnails(
+      ).create.call_args
       self.assertEqual(
           kwargs['body']['expression'],
           serializer.encode(
-              ee.Image(1).clipToBoundsAndScale(
-                  geometry=geo_json, width=13, height=42),
+              self.base_image.clipToBoundsAndScale(
+                  geometry=self.expected_geometry, width=13, height=42),
               for_cloud_api=True))
       self.assertEqual(kwargs['parent'], 'projects/earthengine-legacy')
 
-    # Again with visualization parameters
-    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
-      url = ee.Image(1).getThumbURL({
+  def testThumb_withDimensionsListCoords(self):
+    # Try it with the region as a list of coordinates.
+    with apitestcase.UsingCloudApi(cloud_api_resource=self.cloud_api_resource):
+      self.base_image.getThumbURL({
           'dimensions': [13, 42],
-          'region': geo_json,
-          'min': 0
+          'region': [[-180, -90], [-180, 90], [180, 90]],
       })
-      _, kwargs = cloud_api_resource.projects().thumbnails().create.call_args
+
+      _, kwargs = self.cloud_api_resource.projects().thumbnails(
+      ).create.call_args
+      expected_geometry = ee.Geometry.Polygon(
+          [[-180, -90], [-180, 90], [180, 90]], proj=None, geodesic=False)
       self.assertEqual(
           kwargs['body']['expression'],
           serializer.encode(
-              ee.Image(1).clipToBoundsAndScale(
-                  geometry=geo_json, width=13, height=42).visualize(min=0),
+              self.base_image.clipToBoundsAndScale(
+                  geometry=expected_geometry, width=13, height=42),
+              for_cloud_api=True))
+      self.assertEqual(kwargs['parent'], 'projects/earthengine-legacy')
+
+  def testThumb_withDimensionsListMinMax(self):
+    # Try it with the region as a list of coordinates.
+    with apitestcase.UsingCloudApi(cloud_api_resource=self.cloud_api_resource):
+      self.base_image.getThumbURL({
+          'dimensions': [13, 42],
+          'region': [-180, -90, 180, 90],
+      })
+
+      _, kwargs = self.cloud_api_resource.projects().thumbnails(
+      ).create.call_args
+      expected_geometry = ee.Geometry.Rectangle(
+          [-180, -90, 180, 90], proj=None, geodesic=False)
+      self.assertEqual(
+          kwargs['body']['expression'],
+          serializer.encode(
+              self.base_image.clipToBoundsAndScale(
+                  geometry=expected_geometry, width=13, height=42),
+              for_cloud_api=True))
+      self.assertEqual(kwargs['parent'], 'projects/earthengine-legacy')
+
+  def testThumb_withVisualizationParams(self):
+    with apitestcase.UsingCloudApi(cloud_api_resource=self.cloud_api_resource):
+      self.base_image.getThumbURL({
+          'dimensions': [13, 42],
+          'region': self.geo_json,
+          'min': 0
+      })
+      _, kwargs = self.cloud_api_resource.projects().thumbnails(
+      ).create.call_args
+
+      self.assertEqual(
+          kwargs['body']['expression'],
+          serializer.encode(
+              self.base_image.clipToBoundsAndScale(
+                  geometry=self.expected_geometry, width=13,
+                  height=42).visualize(min=0),
               for_cloud_api=True))
 
-  def testPrepareForExport(self):
-    """Verifies proper handling of export-related parameters."""
-    with apitestcase.UsingCloudApi():
-      base_image = ee.Image(1)
+  def testBuildDownloadIdImage_buildsImagePerBand(self):
+    test_image = ee.Image('foo')
 
-      image, params = base_image.prepare_for_export({'something': 'else'})
-      self.assertEqual(base_image, image)
+    # Format is file per band and bands specified: build image out of individual
+    # band images.
+    params = {
+        'format':
+            'ZIPPED_GEO_TIFF_PER_BAND',
+        'bands': [{
+            'id': 'B1',
+            'dimensions': 123,
+        }, {
+            'id': 'B2',
+            'dimensions': 456,
+        }, {
+            'id': 'B3',
+            'dimensions': 789,
+        }],
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(2, image_str.count('addBands'))
+    self.assertEqual(3, image_str.count('maxDimension'))
+    self.assertEqual(1, image_str.count('123'))
+    self.assertEqual(1, image_str.count('456'))
+    self.assertEqual(1, image_str.count('789'))
+
+    # Override the parameters supplied in the top level with the bands
+    # parameters
+    params = {
+        'format': 'ZIPPED_GEO_TIFF_PER_BAND',
+        'bands': [{
+            'id': 'B1',
+            'dimensions': 123,
+        }, {
+            'id': 'B2',
+            'dimensions': 456,
+        }, {
+            'id': 'B3',
+        }],
+        'dimensions': 999,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(2, image_str.count('addBands'))
+    self.assertEqual(3, image_str.count('maxDimension'))
+    self.assertEqual(1, image_str.count('123'))
+    self.assertEqual(1, image_str.count('456'))
+    self.assertEqual(0, image_str.count('789'))
+    self.assertEqual(1, image_str.count('999'))
+
+  def testBuildDownloadIdImage_transformsGivenImage(self):
+    test_image = ee.Image('foo')
+
+    # Format is file per band and bands specified: build image out of individual
+    # band images.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF_PER_BAND',
+        'bands': [],
+        'dimensions': 123,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(0, image_str.count('addBands'))
+    self.assertEqual(1, image_str.count('maxDimension'))
+    self.assertEqual(1, image_str.count('123'))
+
+    # Format is file per band and no bands specified: apply transforms directly
+    # to image.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF_PER_BAND',
+        'dimensions': 123,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(0, image_str.count('addBands'))
+    self.assertEqual(1, image_str.count('maxDimension'))
+    self.assertEqual(1, image_str.count('123'))
+
+    # Format is a single tiff: apply transforms directly to image and ignore
+    # band transformation properties.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF',
+        'bands': [{
+            'id': 'B1',
+            'dimensions': 123,
+        }, {
+            'id': 'B2',
+            'dimensions': 456,
+        }, {
+            'id': 'B3',
+            'dimensions': 789,
+        }],
+        'dimensions': 999,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(0, image_str.count('addBands'))
+    self.assertEqual(1, image_str.count('maxDimension'))
+    self.assertEqual(0, image_str.count('123'))
+    self.assertEqual(0, image_str.count('456'))
+    self.assertEqual(0, image_str.count('789'))
+    self.assertEqual(1, image_str.count('999'))
+
+  def testBuildDownloadIdImage_handlesInvalidParameters(self):
+    # No band ID in band dictionary.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF_PER_BAND',
+        'bands': [{
+            'id': 'B1',
+            'dimensions': 123,
+        }, {
+            'id': 'B2',
+            'dimensions': 456,
+        }, {
+            'dimensions': 789,
+        }],
+        'dimensions': 999,
+    }
+    with self.assertRaisesWithLiteralMatch(
+        ee_exception.EEException, 'Each band dictionary must have an id.'):
+      ee.Image('foo')._build_download_id_image(params)
+
+  def testBuildDownloadIdImage_handlesDimensionsAndScale(self):
+    test_image = ee.Image('foo')
+    dimensions = 123
+    scale = 456
+
+    # File per band: ignores scale parameter if dimensions specified.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF_PER_BAND',
+        'dimensions': dimensions,
+        'scale': scale,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(1, image_str.count(str(dimensions)))
+    self.assertEqual(0, image_str.count(str(scale)))
+
+    # File per band: ignores scale parameter if dimensions specified in band.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF_PER_BAND',
+        'bands': [{
+            'id': 'B1',
+            'dimensions': dimensions
+        }],
+        'scale': scale,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(1, image_str.count(str(dimensions)))
+    self.assertEqual(0, image_str.count(str(scale)))
+
+    # Single tiff: ignores scale parameter if dimensions specified.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF',
+        'dimensions': dimensions,
+        'scale': scale,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(1, image_str.count(str(dimensions)))
+    self.assertEqual(0, image_str.count(str(scale)))
+
+    # Single tiff: ignores all parameters in bands.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF',
+        'bands': [{
+            'id': 'B1',
+            'dimensions': dimensions
+        }],
+        'scale': scale,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(0, image_str.count(str(dimensions)))
+    self.assertEqual(1, image_str.count(str(scale)))
+
+    # Single tiff: ignores all parameters in bands.
+    params = {
+        'format': 'ZIPPED_GEO_TIFF',
+        'bands': [{
+            'id': 'B1',
+            'scale': scale
+        }],
+        'dimensions': dimensions,
+    }
+    image_str = test_image._build_download_id_image(params).serialize()
+    self.assertEqual(1, image_str.count(str(dimensions)))
+    self.assertEqual(0, image_str.count(str(scale)))
+
+  def testDownloadURL(self):
+    """Verifies that the getDownloadURL request is constructed correctly."""
+
+    with apitestcase.UsingCloudApi(cloud_api_resource=self.cloud_api_resource):
+      url = self.base_image.getDownloadURL()
+      _, kwargs = self.cloud_api_resource.projects().thumbnails(
+      ).create.call_args
+      self.assertEqual(
+          serializer.encode(self.base_image, for_cloud_api=True),
+          kwargs['body']['expression'])
+      self.assertEqual('ZIPPED_GEO_TIFF_PER_BAND', kwargs['body']['fileFormat'])
+      self.assertEqual('projects/earthengine-legacy', kwargs['parent'])
+      self.assertEqual('/%s/thumbName:getPixels' % _cloud_api_utils.VERSION,
+                       url)
+
+  def testPrepareForExport_simple(self):
+    """Verifies proper handling of export-related parameters."""
+
+    with apitestcase.UsingCloudApi():
+      image, params = self.base_image.prepare_for_export({'something': 'else'})
+      self.assertImageEqual(self.base_image, image)
       self.assertEqual({'something': 'else'}, params)
 
-      image, params = base_image.prepare_for_export({
+  def testPrepareForExport_withCrsAndTransform(self):
+    with apitestcase.UsingCloudApi():
+      image, params = self.base_image.prepare_for_export({
           'crs': 'ABCD',
           'crs_transform': '1,2,3,4,5,6'
       })
-      self.assertEqual(
-          base_image.reproject(crs='ABCD', crsTransform=[1, 2, 3, 4, 5, 6]),
-          image)
+      self.assertImageEqual(
+          self.base_image.reproject(
+              crs='ABCD', crsTransform=[1, 2, 3, 4, 5, 6]), image)
       self.assertEqual({}, params)
 
+  def testPrepareForExport_invalidCrsAndTransform(self):
+    with apitestcase.UsingCloudApi():
       with self.assertRaises(ee_exception.EEException):
-        image, params = base_image.prepare_for_export(
-            {'crs_transform': '1,2,3,4,5,6'})
+        self.base_image.prepare_for_export({'crs_transform': '1,2,3,4,5,6'})
       with self.assertRaises(ValueError):
-        image, params = base_image.prepare_for_export({
+        self.base_image.prepare_for_export({
             'crs': 'ABCD',
             'crs_transform': 'x'
         })
 
-      point = ee.Geometry.Point(9, 8)
-      image, params = base_image.prepare_for_export({
+  def testPrepareForExport_withPolygon(self):
+    with apitestcase.UsingCloudApi():
+      polygon = ee.Geometry.Polygon(9, 8, 7, 6, 3, 2)
+      image, params = self.base_image.prepare_for_export({
           'dimensions': '3x2',
-          'region': point
+          'region': polygon
       })
-      self.assertEqual(
-          base_image.clipToBoundsAndScale(width=3, height=2, geometry=point),
-          image)
+      expected = self.base_image.clipToBoundsAndScale(
+          width=3, height=2, geometry=polygon)
+      self.assertImageEqual(expected, image)
       self.assertEqual({}, params)
 
-      image, params = base_image.prepare_for_export({
+  def testPrepareForExport_withScaleAndRegion(self):
+    with apitestcase.UsingCloudApi():
+      polygon = ee.Geometry.Polygon(9, 8, 7, 6, 3, 2)
+      image, params = self.base_image.prepare_for_export({
           'scale': 8,
-          'region': point.toGeoJSONString(),
+          'region': polygon.toGeoJSONString(),
           'something': 'else'
       })
-      self.assertEqual(
-          base_image.clipToBoundsAndScale(scale=8, geometry=point), image)
+      expected_polygon = ee.Geometry(polygon.toGeoJSON(), opt_geodesic=False)
+      self.assertImageEqual(
+          self.base_image.clipToBoundsAndScale(
+              scale=8, geometry=expected_polygon), image)
       self.assertEqual({'something': 'else'}, params)
 
-      image, params = base_image.prepare_for_export({
+  def testPrepareForExport_withRegionDimensionsCrsAndTransform(self):
+    with apitestcase.UsingCloudApi():
+      polygon = ee.Geometry.Polygon(9, 8, 7, 6, 3, 2)
+      image, params = self.base_image.prepare_for_export({
           'crs': 'ABCD',
           'crs_transform': '[1,2,3,4,5,6]',
           'dimensions': [3, 2],
-          'region': point.toGeoJSONString(),
+          'region': polygon.toGeoJSONString(),
           'something': 'else'
       })
-      self.assertEqual(
-          base_image.reproject(
-              crs='ABCD', crsTransform=[1, 2, 3, 4, 5, 6]).clipToBoundsAndScale(
-                  width=3, height=2, geometry=point), image)
+      expected_polygon = ee.Geometry(polygon.toGeoJSON(), opt_geodesic=False)
+      projected = self.base_image.reproject(
+          crs='ABCD', crsTransform=[1, 2, 3, 4, 5, 6])
+
+      self.assertImageEqual(
+          projected.clipToBoundsAndScale(
+              width=3, height=2, geometry=expected_polygon), image)
       self.assertEqual({'something': 'else'}, params)
 
+  def testPrepareForExport_withDimensionsCrsAndTransform(self):
+    with apitestcase.UsingCloudApi():
       # Special case of crs+transform+two dimensions
-      image, params = base_image.prepare_for_export({
+      image, params = self.base_image.prepare_for_export({
           'crs': 'ABCD',
           'crs_transform': [1, 2, 3, 4, 5, 6],
           'dimensions': [3, 2],
           'something': 'else'
       })
-      reprojected_image = base_image.reproject(
+      reprojected_image = self.base_image.reproject(
           crs='ABCD', crsTransform=[1, 2, 3, 4, 5, 6])
+
       self.assertEqual(
-          reprojected_image.clipToBoundsAndScale(
-              geometry=ee.Geometry.Rectangle(
+          reprojected_image.clip(
+              ee.Geometry.Rectangle(
                   coords=[0, 0, 3, 2],
                   proj=reprojected_image.projection(),
                   geodesic=False,
                   evenOdd=True)), image)
       self.assertEqual({'something': 'else'}, params)
 
+  def testPrepareForExport_withCrsNoTransform(self):
+    with apitestcase.UsingCloudApi():
       # CRS with no crs_transform causes a "soft" reprojection. Make sure that
       # the (crs, crsTransform, dimensions) special case doesn't trigger.
-      image, params = base_image.prepare_for_export({
+      image, params = self.base_image.prepare_for_export({
           'crs': 'ABCD',
           'dimensions': [3, 2],
           'something': 'else'
       })
-      self.assertEqual(
-          base_image.setDefaultProjection(
-              crs='ABCD',
-              crsTransform=[1, 0, 0, 0, -1, 0]).clipToBoundsAndScale(
-                  width=3, height=2), image)
+      projected = self.base_image.setDefaultProjection(
+          crs='ABCD', crsTransform=[1, 0, 0, 0, -1, 0])
+
+      self.assertEqual(projected.clipToBoundsAndScale(width=3, height=2), image)
       self.assertEqual({'something': 'else'}, params)
 
 

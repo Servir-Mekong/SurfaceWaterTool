@@ -27,7 +27,7 @@ MEMCACHE_EXPIRATION = 60 * 60 * 24
 
 
 # The URL fetch timeout time (seconds).
-URL_FETCH_TIMEOUT = 60
+URL_FETCH_TIMEOUT = 600000
 
 # Create the Jinja templating system we use to dynamically generate HTML. See:
 # http://jinja.pocoo.org/docs/dev/
@@ -49,8 +49,12 @@ urlfetch.set_default_fetch_deadline(URL_FETCH_TIMEOUT)
 class MainHandler(webapp2.RequestHandler):
     """Handles requests to load the main web page."""
     def get(self):
+        template_values = {
+            'GOOGLE_MAPS_API_KEY': config.GOOGLE_MAPS_API_KEY
+        }
         template = JINJA2_ENVIRONMENT.get_template('index.html')
-        self.response.out.write(template.render())
+
+        self.response.out.write(template.render(template_values))
 
 
 class GetBackgroundHandler(webapp2.RequestHandler):
@@ -72,8 +76,10 @@ class GetBackgroundHandler(webapp2.RequestHandler):
         content = {
             'AoImapId': AoI_mapid['mapid'],
             'AoItoken': AoI_mapid['token'],
+            'AoIMapURL': AoI_mapid['tile_fetcher'].url_format,
             'HANDmapId': HAND_mapid['mapid'],
-            'HANDtoken': HAND_mapid['token']
+            'HANDtoken': HAND_mapid['token'],
+            'HANDMapURL': HAND_mapid['tile_fetcher'].url_format
         }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
@@ -85,7 +91,8 @@ class GetDefaultHandler(webapp2.RequestHandler):
         default = SurfaceWaterToolStyle(ee.Image('users/arjenhaag/SERVIR-Mekong/SWMT_default_2017_2')).getMapId()
         content = {
             'eeMapId': default['mapid'],
-            'eeToken': default['token']
+            'eeToken': default['token'],
+            'eeMapURL': default['tile_fetcher'].url_format,
         }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
@@ -111,7 +118,8 @@ class GetWaterMapHandler(webapp2.RequestHandler):
         mapid        = SurfaceWaterToolStyle(water).getMapId()
         content      = {
             'eeMapId': mapid['mapid'],
-            'eeToken': mapid['token']
+            'eeToken': mapid['token'],
+            'eeMapURL': mapid['tile_fetcher'].url_format,
         }
         # send content using json
         self.response.headers['Content-Type'] = 'application/json'
@@ -135,7 +143,8 @@ class GetExampleMapHandler(webapp2.RequestHandler):
         mapid       = SurfaceWaterToolStyle(example_map).getMapId()
         content     = {
             'eeMapId': mapid['mapid'],
-            'eeToken': mapid['token']
+            'eeToken': mapid['token'],
+            'eeMapURL': mapid['tile_fetcher'].url_format,
         }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
@@ -161,51 +170,63 @@ class GetExampleMonthsHandler(webapp2.RequestHandler):
         mapid_12 = SurfaceWaterToolStyle(example_map.select(ee.String('water_').cat(ee.String('12')))).getMapId()
         content_1 = {
             'eeMapId': mapid_1['mapid'],
-            'eeToken': mapid_1['token']
+            'eeToken': mapid_1['token'],
+            'eeMapURL': mapid_1['tile_fetcher'].url_format,
         }
         content_2 = {
             'eeMapId': mapid_2['mapid'],
-            'eeToken': mapid_2['token']
+            'eeToken': mapid_2['token'],
+            'eeMapURL': mapid_2['tile_fetcher'].url_format,
         }
         content_3 = {
             'eeMapId': mapid_3['mapid'],
-            'eeToken': mapid_3['token']
+            'eeToken': mapid_3['token'],
+            'eeMapURL': mapid_3['tile_fetcher'].url_format,
         }
         content_4 = {
             'eeMapId': mapid_4['mapid'],
-            'eeToken': mapid_4['token']
+            'eeToken': mapid_4['token'],
+            'eeMapURL': mapid_4['tile_fetcher'].url_format,
         }
         content_5 = {
             'eeMapId': mapid_5['mapid'],
-            'eeToken': mapid_5['token']
+            'eeToken': mapid_5['token'],
+            'eeMapURL': mapid_5['tile_fetcher'].url_format,
         }
         content_6 = {
             'eeMapId': mapid_6['mapid'],
-            'eeToken': mapid_6['token']
+            'eeToken': mapid_6['token'],
+            'eeMapURL': mapid_6['tile_fetcher'].url_format,
         }
         content_7 = {
             'eeMapId': mapid_7['mapid'],
-            'eeToken': mapid_7['token']
+            'eeToken': mapid_7['token'],
+            'eeMapURL': mapid_6['tile_fetcher'].url_format,
         }
         content_8 = {
             'eeMapId': mapid_8['mapid'],
-            'eeToken': mapid_8['token']
+            'eeToken': mapid_8['token'],
+            'eeMapURL': mapid_8['tile_fetcher'].url_format,
         }
         content_9 = {
             'eeMapId': mapid_9['mapid'],
-            'eeToken': mapid_9['token']
+            'eeToken': mapid_9['token'],
+            'eeMapURL': mapid_9['tile_fetcher'].url_format,
         }
         content_10 = {
             'eeMapId': mapid_10['mapid'],
-            'eeToken': mapid_10['token']
+            'eeToken': mapid_10['token'],
+            'eeMapURL': mapid_10['tile_fetcher'].url_format,
         }
         content_11 = {
             'eeMapId': mapid_11['mapid'],
-            'eeToken': mapid_11['token']
+            'eeToken': mapid_11['token'],
+            'eeMapURL': mapid_11['tile_fetcher'].url_format,
         }
         content_12 = {
             'eeMapId': mapid_12['mapid'],
-            'eeToken': mapid_12['token']
+            'eeToken': mapid_12['token'],
+            'eeMapURL': mapid_12['tile_fetcher'].url_format,
         }
         content = {
             '1': content_1,
@@ -232,7 +253,8 @@ class GetAdmBoundsMapHandler(webapp2.RequestHandler):
         mapid = ee.Image().byte().paint(Adm_bounds, 0, 2).getMapId()
         content = {
             'eeMapId': mapid['mapid'],
-            'eeToken': mapid['token']
+            'eeToken': mapid['token'],
+            'eeMapURL': mapid['tile_fetcher'].url_format,
         }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
@@ -245,7 +267,8 @@ class GetTilesMapHandler(webapp2.RequestHandler):
         mapid = ee.Image().byte().paint(Tiles, 0, 2).getMapId()
         content = {
             'eeMapId': mapid['mapid'],
-            'eeToken': mapid['token']
+            'eeToken': mapid['token'],
+            'eeMapURL': mapid['tile_fetcher'].url_format,
         }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))
@@ -263,6 +286,7 @@ class GetSelectedAdmBoundsHandler(webapp2.RequestHandler):
         content = {
             'eeMapId': mapid['mapid'],
             'eeToken': mapid['token'],
+            'eeMapURL': mapid['tile_fetcher'].url_format,
             'size': size
         }
         self.response.headers['Content-Type'] = 'application/json'
@@ -279,7 +303,8 @@ class GetSelectedTileHandler(webapp2.RequestHandler):
         mapid = area.getMapId({'color':'grey'})
         content = {
             'eeMapId': mapid['mapid'],
-            'eeToken': mapid['token']
+            'eeToken': mapid['token'],
+            'eeMapURL': mapid['tile_fetcher'].url_format,
         }
         self.response.headers['Content-Type'] = 'application/json'
         self.response.out.write(json.dumps(content))

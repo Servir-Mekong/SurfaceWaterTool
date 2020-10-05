@@ -1,4 +1,4 @@
-# Copyright 2016 Google Inc.
+# Copyright 2016 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 from __future__ import absolute_import
 
 import logging
-
+import warnings
 
 # Certifi is Mozilla's certificate bundle. Urllib3 needs a certificate bundle
 # to verify HTTPS requests, and certifi is the recommended and most reliable
@@ -34,10 +34,11 @@ try:
     import urllib3
 except ImportError as caught_exc:  # pragma: NO COVER
     import six
+
     six.raise_from(
         ImportError(
-            'The urllib3 library is not installed, please install the '
-            'urllib3 package to use the urllib3 transport.'
+            "The urllib3 library is not installed, please install the "
+            "urllib3 package to use the urllib3 transport."
         ),
         caught_exc,
     )
@@ -56,6 +57,7 @@ class _Response(transport.Response):
     Args:
         response (urllib3.response.HTTPResponse): The raw urllib3 response.
     """
+
     def __init__(self, response):
         self._response = response
 
@@ -97,11 +99,13 @@ class Request(transport.Request):
 
     .. automethod:: __call__
     """
+
     def __init__(self, http):
         self.http = http
 
-    def __call__(self, url, method='GET', body=None, headers=None,
-                 timeout=None, **kwargs):
+    def __call__(
+        self, url, method="GET", body=None, headers=None, timeout=None, **kwargs
+    ):
         """Make an HTTP request using urllib3.
 
         Args:
@@ -125,12 +129,13 @@ class Request(transport.Request):
         # urllib3 uses a sentinel default value for timeout, so only set it if
         # specified.
         if timeout is not None:
-            kwargs['timeout'] = timeout
+            kwargs["timeout"] = timeout
 
         try:
-            _LOGGER.debug('Making request: %s %s', method, url)
+            _LOGGER.debug("Making request: %s %s", method, url)
             response = self.http.request(
-                method, url, body=body, headers=headers, **kwargs)
+                method, url, body=body, headers=headers, **kwargs
+            )
             return _Response(response)
         except urllib3.exceptions.HTTPError as caught_exc:
             new_exc = exceptions.TransportError(caught_exc)
@@ -139,11 +144,42 @@ class Request(transport.Request):
 
 def _make_default_http():
     if certifi is not None:
-        return urllib3.PoolManager(
-            cert_reqs='CERT_REQUIRED',
-            ca_certs=certifi.where())
+        return urllib3.PoolManager(cert_reqs="CERT_REQUIRED", ca_certs=certifi.where())
     else:
         return urllib3.PoolManager()
+
+
+def _make_mutual_tls_http(cert, key):
+    """Create a mutual TLS HTTP connection with the given client cert and key.
+    See https://github.com/urllib3/urllib3/issues/474#issuecomment-253168415
+
+    Args:
+        cert (bytes): client certificate in PEM format
+        key (bytes): client private key in PEM format
+
+    Returns:
+        urllib3.PoolManager: Mutual TLS HTTP connection.
+
+    Raises:
+        ImportError: If certifi or pyOpenSSL is not installed.
+        OpenSSL.crypto.Error: If the cert or key is invalid.
+    """
+    import certifi
+    from OpenSSL import crypto
+    import urllib3.contrib.pyopenssl
+
+    urllib3.contrib.pyopenssl.inject_into_urllib3()
+    ctx = urllib3.util.ssl_.create_urllib3_context()
+    ctx.load_verify_locations(cafile=certifi.where())
+
+    pkey = crypto.load_privatekey(crypto.FILETYPE_PEM, key)
+    x509 = crypto.load_certificate(crypto.FILETYPE_PEM, cert)
+
+    ctx._ctx.use_certificate(x509)
+    ctx._ctx.use_privatekey(pkey)
+
+    http = urllib3.PoolManager(ssl_context=ctx)
+    return http
 
 
 class AuthorizedHttp(urllib3.request.RequestMethods):
@@ -165,6 +201,48 @@ class AuthorizedHttp(urllib3.request.RequestMethods):
     The underlying :meth:`urlopen` implementation handles adding the
     credentials' headers to the request and refreshing credentials as needed.
 
+    This class also supports mutual TLS via :meth:`configure_mtls_channel`
+    method. If client_cert_callback is provided, client certificate and private
+    key are loaded using the callback; if client_cert_callback is None,
+    application default SSL credentials will be used. Exceptions are raised if
+    there are problems with the certificate, private key, or the loading process,
+    so it should be called within a try/except block.
+
+    First we create an :class:`AuthorizedHttp` instance and specify the endpoints::
+
+        regular_endpoint = 'https://pubsub.googleapis.com/v1/projects/{my_project_id}/topics'
+        mtls_endpoint = 'https://pubsub.mtls.googleapis.com/v1/projects/{my_project_id}/topics'
+
+        authed_http = AuthorizedHttp(credentials)
+
+    Now we can pass a callback to :meth:`configure_mtls_channel`::
+
+        def my_cert_callback():
+            # some code to load client cert bytes and private key bytes, both in
+            # PEM format.
+            some_code_to_load_client_cert_and_key()
+            if loaded:
+                return cert, key
+            raise MyClientCertFailureException()
+
+        # Always call configure_mtls_channel within a try/except block.
+        try:
+            is_mtls = authed_http.configure_mtls_channel(my_cert_callback)
+        except:
+            # handle exceptions.
+
+        if is_mtls:
+            response = authed_http.request('GET', mtls_endpoint)
+        else:
+            response = authed_http.request('GET', regular_endpoint)
+
+    You can alternatively use application default SSL credentials like this::
+
+        try:
+            is_mtls = authed_http.configure_mtls_channel()
+        except:
+            # handle exceptions.
+
     Args:
         credentials (google.auth.credentials.Credentials): The credentials to
             add to the request.
@@ -178,15 +256,22 @@ class AuthorizedHttp(urllib3.request.RequestMethods):
         max_refresh_attempts (int): The maximum number of times to attempt to
             refresh the credentials and retry the request.
     """
-    def __init__(self, credentials, http=None,
-                 refresh_status_codes=transport.DEFAULT_REFRESH_STATUS_CODES,
-                 max_refresh_attempts=transport.DEFAULT_MAX_REFRESH_ATTEMPTS):
 
+    def __init__(
+        self,
+        credentials,
+        http=None,
+        refresh_status_codes=transport.DEFAULT_REFRESH_STATUS_CODES,
+        max_refresh_attempts=transport.DEFAULT_MAX_REFRESH_ATTEMPTS,
+    ):
         if http is None:
-            http = _make_default_http()
+            self.http = _make_default_http()
+            self._has_user_provided_http = False
+        else:
+            self.http = http
+            self._has_user_provided_http = True
 
         self.credentials = credentials
-        self.http = http
         self._refresh_status_codes = refresh_status_codes
         self._max_refresh_attempts = max_refresh_attempts
         # Request instance used by internal methods (for example,
@@ -194,6 +279,57 @@ class AuthorizedHttp(urllib3.request.RequestMethods):
         self._request = Request(self.http)
 
         super(AuthorizedHttp, self).__init__()
+
+    def configure_mtls_channel(self, client_cert_callback=None):
+        """Configures mutual TLS channel using the given client_cert_callback or
+        application default SSL credentials. Returns True if the channel is
+        mutual TLS and False otherwise. Note that the `http` provided in the
+        constructor will be overwritten.
+
+        Args:
+            client_cert_callback (Optional[Callable[[], (bytes, bytes)]]):
+                The optional callback returns the client certificate and private
+                key bytes both in PEM format.
+                If the callback is None, application default SSL credentials
+                will be used.
+
+        Returns:
+            True if the channel is mutual TLS and False otherwise.
+
+        Raises:
+            google.auth.exceptions.MutualTLSChannelError: If mutual TLS channel
+                creation failed for any reason.
+        """
+        try:
+            import OpenSSL
+        except ImportError as caught_exc:
+            new_exc = exceptions.MutualTLSChannelError(caught_exc)
+            six.raise_from(new_exc, caught_exc)
+
+        try:
+            found_cert_key, cert, key = transport._mtls_helper.get_client_cert_and_key(
+                client_cert_callback
+            )
+
+            if found_cert_key:
+                self.http = _make_mutual_tls_http(cert, key)
+            else:
+                self.http = _make_default_http()
+        except (
+            exceptions.ClientCertError,
+            ImportError,
+            OpenSSL.crypto.Error,
+        ) as caught_exc:
+            new_exc = exceptions.MutualTLSChannelError(caught_exc)
+            six.raise_from(new_exc, caught_exc)
+
+        if self._has_user_provided_http:
+            self._has_user_provided_http = False
+            warnings.warn(
+                "`http` provided in the constructor is overwritten", UserWarning
+            )
+
+        return found_cert_key
 
     def urlopen(self, method, url, body=None, headers=None, **kwargs):
         """Implementation of urllib3's urlopen."""
@@ -204,8 +340,7 @@ class AuthorizedHttp(urllib3.request.RequestMethods):
 
         # Use a kwarg for this instead of an attribute to maintain
         # thread-safety.
-        _credential_refresh_attempt = kwargs.pop(
-            '_credential_refresh_attempt', 0)
+        _credential_refresh_attempt = kwargs.pop("_credential_refresh_attempt", 0)
 
         if headers is None:
             headers = self.headers
@@ -214,11 +349,11 @@ class AuthorizedHttp(urllib3.request.RequestMethods):
         # and we want to pass the original headers if we recurse.
         request_headers = headers.copy()
 
-        self.credentials.before_request(
-            self._request, method, url, request_headers)
+        self.credentials.before_request(self._request, method, url, request_headers)
 
         response = self.http.urlopen(
-            method, url, body=body, headers=request_headers, **kwargs)
+            method, url, body=body, headers=request_headers, **kwargs
+        )
 
         # If the response indicated that the credentials needed to be
         # refreshed, then refresh the credentials and re-attempt the
@@ -227,21 +362,29 @@ class AuthorizedHttp(urllib3.request.RequestMethods):
         # the time the request is made, so we may need to try twice.
         # The reason urllib3's retries aren't used is because they
         # don't allow you to modify the request headers. :/
-        if (response.status in self._refresh_status_codes
-                and _credential_refresh_attempt < self._max_refresh_attempts):
+        if (
+            response.status in self._refresh_status_codes
+            and _credential_refresh_attempt < self._max_refresh_attempts
+        ):
 
             _LOGGER.info(
-                'Refreshing credentials due to a %s response. Attempt %s/%s.',
-                response.status, _credential_refresh_attempt + 1,
-                self._max_refresh_attempts)
+                "Refreshing credentials due to a %s response. Attempt %s/%s.",
+                response.status,
+                _credential_refresh_attempt + 1,
+                self._max_refresh_attempts,
+            )
 
             self.credentials.refresh(self._request)
 
             # Recurse. Pass in the original headers, not our modified set.
             return self.urlopen(
-                method, url, body=body, headers=headers,
+                method,
+                url,
+                body=body,
+                headers=headers,
                 _credential_refresh_attempt=_credential_refresh_attempt + 1,
-                **kwargs)
+                **kwargs
+            )
 
         return response
 

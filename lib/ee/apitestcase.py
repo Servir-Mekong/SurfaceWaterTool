@@ -32,7 +32,11 @@ class ApiTestCase(unittest.TestCase):
     ee.data.send_ = self.MockSend
 
     ee.Reset()
-    ee.Initialize(None, '')
+    # Default the cloud api flag to false for tests since we have tests that
+    # set it to true using the UsingCloudApi entry function.  The old unit tests
+    # should eventually be migrated but this should not block flipping the flag
+    # to the cloud api.
+    ee.Initialize(None, '', use_cloud_api=False)
 
   def MockSend(self, path, params, unused_method=None, unused_raw=None):
     if path == '/algorithms':
@@ -993,6 +997,23 @@ BUILTIN_FUNCTIONS = {
         'type': 'Algorithm',
         'description': '',
     },
+    'Dictionary.map': {
+        'returns': 'Dictionary<Object>',
+        'args': [
+            {
+                'type': 'Dictionary<Object>',
+                'description': '',
+                'name': 'dictionary'
+                },
+            {
+                'type': 'Algorithm',
+                'description': '',
+                'name': 'baseAlgorithm'
+                }
+            ],
+        'type': 'Algorithm',
+        'description': '',
+    },
     'Image.reduceRegion': {
         'returns': 'Dictionary<Object>',
         'hidden': False,
@@ -1131,6 +1152,32 @@ BUILTIN_FUNCTIONS = {
         ],
         'description': '',
         'type': 'Algorithm',
+    },
+    'GeometryConstructors.BBox': {
+        'description': '',
+        'returns': 'Geometry',
+        'args': [
+            {
+                'name': 'west',
+                'type': 'Float',
+                'description': ''
+            },
+            {
+                'name': 'south',
+                'type': 'Float',
+                'description': ''
+            },
+            {
+                'name': 'east',
+                'type': 'Float',
+                'description': ''
+            },
+            {
+                'name': 'north',
+                'type': 'Float',
+                'description': ''
+            }
+        ]
     },
     'GeometryConstructors.Point': {
         'returns': 'Geometry',

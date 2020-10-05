@@ -5,7 +5,7 @@ from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
 class OperationsStub(object):
-  """Manages long-running operations with an API service.
+    """Manages long-running operations with an API service.
 
   When an API method normally takes long time to complete, it can be designed
   to return [Operation][google.longrunning.Operation] to the client, and the client can use this
@@ -16,29 +16,29 @@ class OperationsStub(object):
   so developers can have a consistent client experience.
   """
 
-  def __init__(self, channel):
-    """Constructor.
+    def __init__(self, channel):
+        """Constructor.
 
     Args:
       channel: A grpc.Channel.
     """
-    self.GetOperation = channel.unary_unary(
-        '/google.longrunning.Operations/GetOperation',
-        request_serializer=GetOperationRequest.SerializeToString,
-        response_deserializer=Operation.FromString,
+        self.GetOperation = channel.unary_unary(
+            "/google.longrunning.Operations/GetOperation",
+            request_serializer=GetOperationRequest.SerializeToString,
+            response_deserializer=Operation.FromString,
         )
-    self.ListOperations = channel.unary_unary(
-        '/google.longrunning.Operations/ListOperations',
-        request_serializer=ListOperationsRequest.SerializeToString,
-        response_deserializer=ListOperationsResponse.FromString,
+        self.ListOperations = channel.unary_unary(
+            "/google.longrunning.Operations/ListOperations",
+            request_serializer=ListOperationsRequest.SerializeToString,
+            response_deserializer=ListOperationsResponse.FromString,
         )
-    self.CancelOperation = channel.unary_unary(
-        '/google.longrunning.Operations/CancelOperation',
-        request_serializer=CancelOperationRequest.SerializeToString,
-        response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+        self.CancelOperation = channel.unary_unary(
+            "/google.longrunning.Operations/CancelOperation",
+            request_serializer=CancelOperationRequest.SerializeToString,
+            response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
         )
-    self.DeleteOperation = channel.unary_unary(
-        '/google.longrunning.Operations/DeleteOperation',
-        request_serializer=DeleteOperationRequest.SerializeToString,
-        response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+        self.DeleteOperation = channel.unary_unary(
+            "/google.longrunning.Operations/DeleteOperation",
+            request_serializer=DeleteOperationRequest.SerializeToString,
+            response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
         )

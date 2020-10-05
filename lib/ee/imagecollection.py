@@ -83,16 +83,16 @@ class ImageCollection(collection.Collection):
     cls._initialized = False
 
   def getMapId(self, vis_params=None):
-    """Fetch and return a MapID.
+    """Fetch and return a Map ID.
 
-    This mosaics the collection to a single image and return a mapid suitable
+    This mosaics the collection to a single image and return a map ID suitable
     for building a Google Maps overlay.
 
     Args:
-       vis_params: The visualization parameters.
+      vis_params: The visualization parameters.
 
     Returns:
-       A mapid and token.
+      A map ID dictionary as described in ee.data.getMapId.
     """
     mosaic = apifunction.ApiFunction.call_('ImageCollection.mosaic', self)
     return mosaic.getMapId(vis_params)
@@ -129,6 +129,38 @@ class ImageCollection(collection.Collection):
   def elementType():
     return image.Image
 
+  def getVideoThumbURL(self, params=None):
+    """Get the URL for an animated video thumbnail of the given collection.
+
+    Note: Videos can only be created when the image visualization
+    creates an RGB or RGBA image.  This can be done by mapping a visualization
+    onto the collection or specifying three bands in the params.
+
+    Args:
+      params: Parameters identical to getMapId, plus, optionally:
+      dimensions -
+        (a number or pair of numbers in format WIDTHxHEIGHT) Max dimensions of
+        the thumbnail to render, in pixels. If only one number is passed, it is
+        used as the maximum, and the other dimension is computed by proportional
+        scaling.
+      crs - a CRS string specifying the projection of the output.
+      crs_transform - the affine transform to use for the output pixel grid.
+      scale - a scale to determine the output pixel grid; ignored if both crs
+        and crs_transform are specified.
+      region - (E,S,W,N or GeoJSON) Geospatial region of the result. By default,
+        the whole image.
+      format - (string) The output format (only 'gif' is currently supported).
+      framesPerSecond - Animation speed.
+      Visualization parameters - ['bands', 'gain', 'bias', 'min', 'max',
+        'gamma', 'palette', 'opacity', 'forceRgbOutput'] see Earth Engine
+         API for ee.Image.visualize for more information.
+    Returns:
+      A URL to download a thumbnail of the specified ImageCollection.
+
+    Raises:
+      EEException: If the region parameter is not an array or GeoJSON object.
+    """
+    return self._getThumbURL(['gif'], params, thumbType='video')
 
   def getFilmstripThumbURL(self, params=None):
     """Get the URL for a "filmstrip" thumbnail of the given collection.
@@ -147,16 +179,18 @@ class ImageCollection(collection.Collection):
       region - (E,S,W,N or GeoJSON) Geospatial region of the result. By default,
         the whole image.
       format - (string) The output format (e.g., "png", "jpg").
-
+      Visualization parameters - ['bands', 'gain', 'bias', 'min', 'max',
+        'gamma', 'palette', 'opacity', 'forceRgbOutput'] see Earth Engine
+         API for ee.Image.visualize for more information.
     Returns:
       A URL to download a thumbnail of the specified ImageCollection.
 
     Raises:
       EEException: If the region parameter is not an array or GeoJSON object.
     """
-    return self._getThumbURL(['png', 'jpg'], params)
+    return self._getThumbURL(['png', 'jpg'], params, thumbType='filmstrip')
 
-  def _getThumbURL(self, valid_formats, params=None):
+  def _getThumbURL(self, valid_formats, params=None, thumbType=None):
     """Get the URL for a thumbnail of this collection.
 
     Args:
@@ -175,6 +209,7 @@ class ImageCollection(collection.Collection):
       region - (E,S,W,N or GeoJSON) Geospatial region of the result. By default,
         the whole image.
       format - (string) The output format
+      thumbType: must be either 'video' or 'filmstrip'.
 
     Returns:
       A URL to download a thumbnail of the specified ImageCollection.
@@ -196,11 +231,17 @@ class ImageCollection(collection.Collection):
       raise ee_exception.EEException(
           'Invalid format specified for thumbnail. ' + str(params['format']))
 
+    if params and 'framesPerSecond' in params:
+      request['framesPerSecond'] = params.get('framesPerSecond')
     request['image'] = clipped_collection
     if params and params.get('dimensions') is not None:
       request['dimensions'] = params.get('dimensions')
+    if thumbType not in ['video', 'filmstrip']:
+      raise ee_exception.EEException(
+          'Invalid thumbType provided to _getThumbURL only \'video\' or '
+          '\'filmstrip\' is supported.')
 
-    return data.makeThumbUrl(data.getThumbId(request))
+    return data.makeThumbUrl(data.getThumbId(request, thumbType=thumbType))
 
   def _apply_preparation_function(self, preparation_function, params):
     """Applies a preparation function to an ImageCollection.

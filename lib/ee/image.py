@@ -40,7 +40,7 @@ class Image(element.Element):
           - A string - an EarthEngine asset id,
           - A string and a number - an EarthEngine asset id and version,
           - A number - creates a constant image,
-          - An EEArray - creates a constant array image,
+          - An ee.Array - creates a constant array image,
           - A list - creates an image out of each element of the array and
             combines them into a single image,
           - An ee.Image - returns the argument,
@@ -118,13 +118,13 @@ class Image(element.Element):
     return super(Image, self).getInfo()
 
   def getMapId(self, vis_params=None):
-    """Fetch and return a map id and token, suitable for use in a Map overlay.
+    """Fetch and return a map ID dictionary, suitable for use in a Map overlay.
 
     Args:
       vis_params: The visualization parameters.  See ee.data.getMapId.
 
     Returns:
-      An object containing a mapid and access token, or an error message.
+      A map ID dictionary as described in ee.data.getMapId.
     """
     vis_image, request = self._apply_visualization(vis_params)
     request['image'] = vis_image
@@ -198,8 +198,8 @@ class Image(element.Element):
             desired_rectangle = geometry.Geometry.Rectangle(
                 [0, 0, dimensions[0], dimensions[1]],
                 proj=image.projection(),
-                evenOdd=True,
-                geodesic=False)
+                geodesic=False,
+                evenOdd=True)
             # This will take effect in _apply_selection_and_scale. The
             # combination reprojection and clipping will result in the exact
             # desired rectangle.
@@ -230,6 +230,7 @@ class Image(element.Element):
       - any remaining (non-selection/scale) parameters.
     """
     keys_to_extract = set(['region', 'dimensions', 'scale'])
+    scale_keys = ['maxDimension', 'height', 'width', 'scale']
     request = {}
     selection_params = {}
     if params:
@@ -248,17 +249,39 @@ class Image(element.Element):
             # Could be a Geometry, a GeoJSON struct, or a GeoJSON string.
             # Geometry's constructor knows how to handle the first two.
             region = params[key]
+            # If given a Geometry object, just use the client's Geometry.
+            if isinstance(region, geometry.Geometry):
+              selection_params['geometry'] = region
+              continue
+            # Otherwise, we may be given a GeoJSON object or string.
             if isinstance(region, six.string_types):
               region = json.loads(region)
-            selection_params['geometry'] = geometry.Geometry(region)
+            # By default the Geometry should be planar.
+            if isinstance(region, list):
+              if (len(region) == 2
+                  or all(isinstance(e, (int, float)) for e in region)):
+                selection_params['geometry'] = geometry.Geometry.Rectangle(
+                    region, None, geodesic=False)
+              else:
+                selection_params['geometry'] = geometry.Geometry.Polygon(
+                    region, None, geodesic=False)
+              continue
+            selection_params['geometry'] = geometry.Geometry(
+                region, opt_proj=None, opt_geodesic=False)
           else:
             selection_params[key] = params[key]
-
     image = self
     if selection_params:
       selection_params['input'] = image
-      image = apifunction.ApiFunction.apply_('Image.clipToBoundsAndScale',
-                                             selection_params)
+      if any(key in selection_params for key in scale_keys):
+        image = apifunction.ApiFunction.apply_(
+            'Image.clipToBoundsAndScale', selection_params)
+      else:
+        clip_params = {
+            'input': image,
+            'geometry': selection_params.get('geometry')
+        }
+        image = apifunction.ApiFunction.apply_('Image.clip', clip_params)
     return image, request
 
   def _apply_visualization(self, params):
@@ -287,12 +310,74 @@ class Image(element.Element):
           vis_params[key] = params[key]
         else:
           request[key] = params[key]
-
     image = self
     if vis_params:
       vis_params['image'] = image
       image = apifunction.ApiFunction.apply_('Image.visualize', vis_params)
     return image, request
+
+  def _build_download_id_image(self, params):
+    """Processes the getDownloadId parameters and returns the built image.
+
+    Given transformation parameters (crs, crs_transform, dimensions, scale, and
+    region), constructs an image per band. Band level parameters override the
+    parameters specified in the top level. If dimensions and scale parameters
+    are both specified, the scale parameter is ignored.
+
+    Image transformations will be applied on a per band basis if the
+    format parameter is ZIPPED_GEO_TIFF_PER_BAND and there are bands in the
+    bands list. Otherwise, the transformations will be applied on the entire
+    image.
+
+    Args:
+      params: The getDownloadId parameters.
+
+    Returns:
+      The image filtered to the given bands and the associated transformations
+      applied.
+    """
+    params = params.copy()
+
+    def _extract_and_validate_transforms(obj):
+      """Takes a parameter dictionary and extracts the transformation keys."""
+      extracted = {}
+      for key in ['crs', 'crs_transform', 'dimensions', 'region']:
+        if key in obj:
+          extracted[key] = obj[key]
+      # Since dimensions and scale are mutually exclusive, we ignore scale
+      # if dimensions are specified.
+      if 'scale' in obj and 'dimensions' not in obj:
+        extracted['scale'] = obj['scale']
+      return extracted
+
+    def _build_image_per_band(band_params):
+      """Takes a band dictionary and builds an image for it."""
+      if 'id' not in band_params:
+        raise ee_exception.EEException('Each band dictionary must have an id.')
+      band_id = band_params['id']
+      band_image = self.select(band_id)
+      # Override the existing top level params with the band level params.
+      copy_params = _extract_and_validate_transforms(params)
+      band_params = _extract_and_validate_transforms(band_params)
+      copy_params.update(band_params)
+      band_params = _extract_and_validate_transforms(copy_params)
+      # pylint: disable=protected-access
+      band_image, band_params = band_image._apply_crs_and_affine(band_params)
+      band_image, _ = band_image._apply_selection_and_scale(band_params)
+      # pylint: enable=protected-access
+      return band_image
+
+    if params['format'] == 'ZIPPED_GEO_TIFF_PER_BAND' and params.get(
+        'bands') and len(params.get('bands')):
+      # Build a new image based on the constituent band images.
+      image = Image.combine_(
+          [_build_image_per_band(band) for band in params['bands']])
+    else:
+      # Apply transformations directly onto the image, ignoring any band params.
+      copy_params = _extract_and_validate_transforms(params)
+      image, copy_params = self._apply_crs_and_affine(copy_params)  # pylint: disable=protected-access
+      image, _ = image._apply_selection_and_scale(copy_params)  # pylint: disable=protected-access
+    return image
 
   def prepare_for_export(self, params):
     """Applies all relevant export parameters to an image.
@@ -343,12 +428,14 @@ class Image(element.Element):
             ignored if crs and crs_transform is specified.
         region -  a polygon specifying a region to download; ignored if crs
             and crs_transform is specified.
-
+        filePerBand - whether to produce a different GeoTIFF per band (boolean).
+            Defaults to true. If false, a single GeoTIFF is produced and all
+            band-level transformations will be ignored.
     Returns:
       A URL to download the specified image.
     """
     request = params or {}
-    request['image'] = self.serialize()
+    request['image'] = self
     return data.makeDownloadUrl(data.getDownloadId(request))
 
   def getThumbId(self, params):
@@ -385,8 +472,11 @@ class Image(element.Element):
             dimensions of the thumbnail to render, in pixels. If only one number
             is passed, it is used as the maximum, and the other dimension is
             computed by proportional scaling.
-          region - (E,S,W,N or GeoJSON) Geospatial region of the image
-            to render. By default, the whole image.
+          region - (ee.Geometry, GeoJSON, list of numbers, list of points)
+            Geospatial region of the image to render. By default, the whole
+            image.  If given a list of min lon, min lat, max lon, max lat,
+            a planar rectangle is created.  If given a list of points a
+            planar polygon is created.
           format - (string) Either 'png' or 'jpg'.
 
     Returns:
@@ -403,8 +493,7 @@ class Image(element.Element):
     image, params = self._apply_visualization(params)
     params['image'] = image
     if 'region' in params:
-      if (isinstance(params['region'], dict) or
-          isinstance(params['region'], list)):
+      if isinstance(params['region'], (dict, list)):
         params['region'] = json.dumps(params['region'])
       elif not isinstance(params['region'], str):
         raise ee_exception.EEException(

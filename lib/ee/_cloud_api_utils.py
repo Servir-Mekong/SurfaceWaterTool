@@ -11,20 +11,39 @@ from __future__ import division
 from __future__ import print_function
 
 import calendar
+import copy
 import datetime
 
 import re
 import warnings
 
 from . import ee_exception
-from apiclient import discovery
-from apiclient import http
-from apiclient import model
 from google_auth_httplib2 import AuthorizedHttp
+from googleapiclient import discovery
+from googleapiclient import http
+from googleapiclient import model
 
-import httplib2
+# We use the urllib3-aware shim if it's available.
+# It is not available by default if the package is installed via the conda-forge
+# channel.
+# pylint: disable=g-bad-import-order,g-import-not-at-top
+try:
+  import httplib2shim as httplib2
+except ImportError:
+  import httplib2
 import six
+# pylint: enable=g-bad-import-order,g-import-not-at-top
 
+# The Cloud API version.
+VERSION = 'v1alpha'
+
+PROJECT_ID_PATTERN = (r'^(?:\w+(?:[\w\-]+\.[\w\-]+)*?\.\w+\:)?'
+                      r'[a-z][-a-z0-9]{4,28}[a-z0-9]$')
+ASSET_NAME_PATTERN = (r'^projects/((?:\w+(?:[\w\-]+\.[\w\-]+)*?\.\w+\:)?'
+                      r'[a-z][a-z0-9\-]{4,28}[a-z0-9])/assets/(.*)$')
+
+ASSET_ROOT_PATTERN = (r'^projects/((?:\w+(?:[\w\-]+\.[\w\-]+)*?\.\w+\:)?'
+                      r'[a-z][a-z0-9\-]{4,28}[a-z0-9])/assets/?$')
 
 # The default user project to use when making Cloud API calls.
 _cloud_api_user_project = None
@@ -108,8 +127,8 @@ def build_cloud_resource(api_base_url,
     A resource object to use to call the Cloud API.
   """
   discovery_service_url = (
-      '{}/$discovery/rest?version=v1alpha&prettyPrint=false'
-      .format(api_base_url))
+      '{}/$discovery/rest?version={}&prettyPrint=false'
+      .format(api_base_url, VERSION))
   if http_transport is None:
     http_transport = httplib2.Http(timeout=timeout)
   if credentials is not None:
@@ -122,7 +141,7 @@ def build_cloud_resource(api_base_url,
     alt_model = None
   resource = discovery.build(
       'earthengine',
-      'v1alpha',
+      VERSION,
       discoveryServiceUrl=discovery_service_url,
       developerKey=api_key,
       http=http_transport,
@@ -306,13 +325,18 @@ def convert_get_list_params_to_list_images_params(params):
           'starttime': ('startTime', _convert_msec_to_timestamp),
           'endtime': ('endTime', _convert_msec_to_timestamp),
           'bbox': ('region', _convert_bounding_box_to_geo_json),
-          'region': 'region'
+          'region': 'region',
+          'filter': 'filter'
       },
       key_warnings=True)
   # getList returns minimal information; we can filter unneeded stuff out
   # server-side.
-  params['fields'] = 'images(name)'
+  params['view'] = 'BASIC'
   return params
+
+
+def is_asset_root(asset_name):
+  return bool(re.match(ASSET_ROOT_PATTERN, asset_name))
 
 
 def convert_list_images_result_to_get_list_result(result):
@@ -358,7 +382,9 @@ def convert_asset_type_for_create_asset(asset_type):
   """Converts a createAsset asset type to an EarthEngineAsset.Type."""
   return _convert_value(
       asset_type, {
+          'Image': 'IMAGE',
           'ImageCollection': 'IMAGE_COLLECTION',
+          'Table': 'TABLE',
           'Folder': 'FOLDER'
       }, asset_type)
 
@@ -375,8 +401,7 @@ def convert_asset_id_to_asset_name(asset_id):
   Returns:
     An asset name string in the format 'projects/*/assets/**'.
   """
-  # r'[a-z][a-z0-9\-]{4,28}[a-z0-9]' matches a valid Cloud project ID.
-  if re.match(r'projects/[a-z][a-z0-9\-]{4,28}[a-z0-9]/assets/.*', asset_id):
+  if re.match(ASSET_NAME_PATTERN, asset_id) or is_asset_root(asset_id):
     return asset_id
   elif asset_id.split('/')[0] in ['users', 'projects']:
     return 'projects/earthengine-legacy/assets/{}'.format(asset_id)
@@ -399,7 +424,8 @@ def split_asset_name(asset_name):
 
 def convert_operation_name_to_task_id(operation_name):
   """Converts an Operation name to a task ID."""
-  return re.search('operations/(.*)', operation_name).group(1)
+  found = re.search(r'^.*operations/(.*)$', operation_name)
+  return found.group(1) if found else operation_name
 
 
 def convert_task_id_to_operation_name(task_id):
@@ -443,14 +469,18 @@ def convert_sources_to_one_platform_sources(sources):
   """Converts the sources to one platform representation of sources."""
   converted_sources = []
   for source in sources:
-    if 'primaryPath' in source:
-      converted_source = {'uris': [source['primaryPath']]}
-      if 'additionalPaths' in source:
-        for additional_path in source['additionalPaths']:
-          converted_source['uris'].append(additional_path)
-      converted_sources.append(converted_source)
-    else:
-      converted_sources.append(source)
+    converted_source = copy.deepcopy(source)
+    if 'primaryPath' in converted_source:
+      file_sources = [converted_source['primaryPath']]
+      if 'additionalPaths' in converted_source:
+        file_sources += converted_source['additionalPaths']
+        del converted_source['additionalPaths']
+      del converted_source['primaryPath']
+      converted_source['uris'] = file_sources
+    if 'maxError' in converted_source:
+      converted_source['maxErrorMeters'] = converted_source['maxError']
+      del converted_source['maxError']
+    converted_sources.append(converted_source)
   return converted_sources
 
 
@@ -478,6 +508,7 @@ def convert_algorithms(algorithms):
     - optional: bool (optional)
     - default: default value (optional)
   - hidden: bool (optional)
+  - preview: bool (optional)
   - deprecated: string containing deprecation reason (optional)
 
   Args:
@@ -500,7 +531,8 @@ def _convert_algorithm(algorithm):
           'description': 'description',
           'returnType': 'returns',
           'arguments': ('args', _convert_algorithm_arguments),
-          'hidden': 'hidden'
+          'hidden': 'hidden',
+          'preview': 'preview'
       },
       defaults={
           'description': '',
@@ -676,6 +708,7 @@ def convert_operation_to_task(operation):
           'createTime': ('creation_timestamp_ms', _convert_timestamp_to_msec),
           'updateTime': ('update_timestamp_ms', _convert_timestamp_to_msec),
           'startTime': ('start_timestamp_ms', _convert_timestamp_to_msec),
+          'attempt': 'attempt',
           'state': ('state', _convert_operation_state_to_task_state),
           'description': 'description',
           'type': 'task_type',

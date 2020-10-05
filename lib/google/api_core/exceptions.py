@@ -41,6 +41,12 @@ class GoogleAPIError(Exception):
     pass
 
 
+class DuplicateCredentialArgs(GoogleAPIError):
+    """Raised when multiple credentials are passed."""
+
+    pass
+
+
 @six.python_2_unicode_compatible
 class RetryError(GoogleAPIError):
     """Raised when a function has exhausted all of its available retries.
@@ -444,6 +450,10 @@ def from_grpc_status(status_code, message, **kwargs):
     return error
 
 
+def _is_informative_grpc_error(rpc_exc):
+    return hasattr(rpc_exc, "code") and hasattr(rpc_exc, "details")
+
+
 def from_grpc_error(rpc_exc):
     """Create a :class:`GoogleAPICallError` from a :class:`grpc.RpcError`.
 
@@ -454,7 +464,9 @@ def from_grpc_error(rpc_exc):
         GoogleAPICallError: An instance of the appropriate subclass of
             :class:`GoogleAPICallError`.
     """
-    if isinstance(rpc_exc, grpc.Call):
+    # NOTE(lidiz) All gRPC error shares the parent class grpc.RpcError.
+    # However, check for grpc.RpcError breaks backward compatibility.
+    if isinstance(rpc_exc, grpc.Call) or _is_informative_grpc_error(rpc_exc):
         return from_grpc_status(
             rpc_exc.code(), rpc_exc.details(), errors=(rpc_exc,), response=rpc_exc
         )

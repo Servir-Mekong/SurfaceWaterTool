@@ -529,7 +529,7 @@ class Export(object):
     def toDrive(collection, description='myExportTableTask',
                 folder=None, fileNamePrefix=None, fileFormat=None,
                 selectors=None, **kwargs):
-      """Creates a task to export a FeatureCollection to Google Cloud Storage.
+      """Creates a task to export a FeatureCollection to Drive.
 
       Args:
         collection: The feature collection to be exported.
@@ -765,6 +765,9 @@ ALLOWED_FORMAT_OPTIONS = {
 def _ConvertConfigParams(config):
   """Converts numeric sequences into comma-separated string representations."""
   updatedConfig = {}
+  # Non-Cloud API expects that pyramiding policy is a JSON string.
+  if 'pyramidingPolicy' in config:
+    updatedConfig['pyramidingPolicy'] = json.dumps(config['pyramidingPolicy'])
   for k, v in config.items():
     if v and isinstance(v, (list, tuple)):
       # Leave nested lists/tuples alone. We're only interested in converting
@@ -864,6 +867,10 @@ def _prepare_image_export_config(image, config, export_destination):
       asset_export_options = {}
       asset_export_options[
           'earthEngineDestination'] = _build_earth_engine_destination(config)
+      # This can only be set by internal users.
+      if 'tileSize' in config:
+        asset_export_options['tileSize'] = {
+            'value': int(config.pop('tileSize'))}
       if 'pyramidingPolicy' in config:
         pyramiding_policy = config.pop('pyramidingPolicy')
         if '.default' in pyramiding_policy:
@@ -882,7 +889,11 @@ def _prepare_image_export_config(image, config, export_destination):
     if 'maxPixels' in config:
       # This field is an Int64Value, so it needs an inner "value" field, and
       # the value itself is a string, not an integer, in the JSON encoding.
-      request['maxPixels'] = {'value': str(config.pop('maxPixels'))}
+      request['maxPixels'] = {'value': str(int(config.pop('maxPixels')))}
+
+    # This can only be set by internal users.
+    if 'maxWorkers' in config:
+      request['maxWorkerCount'] = {'value': int(config.pop('maxWorkers'))}
 
     # Of the remaining fields in ExportImageRequest:
     # - All the values that would go into the PixelGrid should have been folded
@@ -904,7 +915,7 @@ def _prepare_image_export_config(image, config, export_destination):
     ConvertFormatSpecificParams(config)
 
   config.update(_ConvertConfigParams(config))
-  config['json'] = image.serialize()
+  config['json'] = image.serialize(for_cloud_api=False)
 
   return config
 
@@ -945,12 +956,15 @@ def _prepare_map_export_config(image, config):
     request['tileOptions'] = _build_tile_options(config)
     request['tileExportOptions'] = _build_image_file_export_options(
         config, Task.ExportDestination.GCS)
+    # This can only be set by internal users.
+    if 'maxWorkers' in config:
+      request['maxWorkerCount'] = {'value': int(config.pop('maxWorkers'))}
     if config:
       raise ee_exception.EEException(
           'Unknown configuration options: {}.'.format(config))
     return request
   config.update(_ConvertConfigParams(config))
-  config['json'] = image.serialize()
+  config['json'] = image.serialize(for_cloud_api=False)
 
   return config
 
@@ -994,12 +1008,16 @@ def _prepare_table_export_config(collection, config, export_destination):
       # tuple or other non-list iterable.
       request['selectors'] = list(config.pop('selectors'))
 
+    # This can only be set by internal users.
+    if 'maxWorkers' in config:
+      request['maxWorkerCount'] = {'value': int(config.pop('maxWorkers'))}
+
     if config:
       raise ee_exception.EEException(
           'Unknown configuration options: {}.'.format(config))
     return request
   config.update(_ConvertConfigParams(config))
-  config['json'] = collection.serialize()
+  config['json'] = collection.serialize(for_cloud_api=False)
 
   return config
 
@@ -1031,12 +1049,15 @@ def _prepare_video_export_config(collection, config, export_destination):
 
     request['fileExportOptions'] = _build_video_file_export_options(
         config, export_destination)
+    # This can only be set by internal users.
+    if 'maxWorkers' in config:
+      request['maxWorkerCount'] = {'value': int(config.pop('maxWorkers'))}
 
     if config:
       raise ee_exception.EEException(
           'Unknown configuration options: {}.'.format(config))
     return request
-  config['json'] = collection.serialize()
+  config['json'] = collection.serialize(for_cloud_api=False)
   return config
 
 
@@ -1108,7 +1129,7 @@ def _build_image_file_export_options(config, export_destination):
       # This field is an Int64Value, so it needs an inner "value" field, and
       # the value itself is a string, not an integer, in the JSON encoding.
       tf_record_options['maxSizeBytes'] = {
-          'value': str(file_format_options.pop('maxFileSize'))
+          'value': str(int(file_format_options.pop('maxFileSize')))
       }
     if 'defaultValue' in file_format_options:
       tf_record_options['defaultValue'] = file_format_options.pop(
@@ -1130,7 +1151,7 @@ def _build_image_file_export_options(config, export_destination):
           'value': file_format_options.pop('maskedThreshold')
       }
     if tf_record_options:
-      file_format_options['tfRecordOptions'] = tf_record_options
+      file_export_options['tfRecordOptions'] = tf_record_options
 
   if file_format_options:
     raise ee_exception.EEException(
@@ -1185,7 +1206,8 @@ def _build_video_options(config):
   if 'maxFrames' in config:
     video_options['maxFrames'] = config.pop('maxFrames')
   if 'maxPixels' in config:
-    video_options['maxPixelsPerFrame'] = {'value': str(config.pop('maxPixels'))}
+    video_options['maxPixelsPerFrame'] = {
+        'value': str(int(config.pop('maxPixels')))}
   return video_options
 
 
@@ -1321,28 +1343,6 @@ def _create_export_task(config, task_type):
   return Task(data.newTaskId()[0], task_type, Task.State.UNSUBMITTED, config)
 
 
-def _create_task(task_type, ee_object, description, config):
-  """Creates an export task.
-
-  Args:
-    task_type: The type of the task to create. One of Task.Type.
-    ee_object: The object to export.
-    description: Human-readable name of the task.
-    config: Custom config fields for the task.
-
-  Returns:
-    An unstarted export Task.
-  """
-  config.update(_ConvertConfigParams(config))
-  full_config = {
-      'json': ee_object.serialize(),
-      'description': description,
-  }
-  if config: full_config.update(config)
-  return Task(data.newTaskId()[0], task_type, Task.State.UNSUBMITTED,
-              full_config)
-
-
 def _capture_parameters(all_locals, parameters_to_exclude):
   """Creates a parameter dict by copying all non-None locals.
 
@@ -1451,7 +1451,8 @@ def _canonicalize_parameters(config, destination):
               collision_error.format(key, remapped_key))
         format_options[remapped_key] = value
         keys_to_delete.append(key)
-    config[IMAGE_FORMAT_OPTIONS_FIELD] = format_options
+    if format_options:
+      config[IMAGE_FORMAT_OPTIONS_FIELD] = format_options
     for key in keys_to_delete:
       del config[key]
 

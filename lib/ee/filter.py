@@ -212,7 +212,8 @@ class Filter(computedobject.ComputedObject):
     """Filter images by date.
 
     The start and end may be a Date, numbers (interpreted as milliseconds since
-    1970-01-01T00:00:00Z), or strings (such as '1996-01-01T08:00').
+    1970-01-01T00:00:00Z), or strings (such as '1996-01-01T08:00'). Based on
+    'system:time_start'.
 
     Args:
       start: The inclusive start date.
@@ -260,10 +261,10 @@ class Filter(computedobject.ComputedObject):
 
   @staticmethod
   def geometry(geometry, opt_errorMargin=None):
-    """Filter on bounds.
+    """Filter on intersection with geometry.
 
     Items in the collection with a footprint that fails to intersect
-    the bounds will be excluded when the collection is evaluated.
+    the given geometry will be excluded.
 
     Args:
       geometry: The geometry to filter to either as a GeoJSON geometry,
@@ -272,7 +273,7 @@ class Filter(computedobject.ComputedObject):
           sphere surface meters.
 
     Returns:
-      The modified filter.
+      The constructed filter.
     """
     # Invoke geometry promotion then manually promote to a Feature.
     args = {

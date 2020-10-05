@@ -1,2 +1,6 @@
 *.pyc
 credentials/
+
+*fig.py
+
+!appengine_config.py

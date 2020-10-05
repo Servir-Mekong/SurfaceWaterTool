@@ -30,6 +30,7 @@ from google.cloud._helpers import _LocalStack, _NOW
 from google.cloud.client import ClientWithProject
 from google.cloud.exceptions import NotFound
 from google.cloud.storage._helpers import _get_storage_host
+from google.cloud.storage._helpers import _bucket_bound_hostname_url
 from google.cloud.storage._http import Connection
 from google.cloud.storage._signing import (
     get_expiration_seconds_v4,
@@ -78,6 +79,7 @@ class Client(ClientWithProject):
         requests. If ``None``, then default info will be used. Generally,
         you only need to set this if you're developing your own library
         or partner tool.
+
     :type client_options: :class:`~google.api_core.client_options.ClientOptions` or :class:`dict`
     :param client_options: (Optional) Client options used to set user options on the client.
         API Endpoint should be set through client_options.
@@ -99,15 +101,21 @@ class Client(ClientWithProject):
         client_options=None,
     ):
         self._base_connection = None
+
         if project is None:
             no_project = True
             project = "<none>"
         else:
             no_project = False
+
         if project is _marker:
             project = None
+
         super(Client, self).__init__(
-            project=project, credentials=credentials, _http=_http
+            project=project,
+            credentials=credentials,
+            client_options=client_options,
+            _http=_http,
         )
 
         kw_args = {"client_info": client_info}
@@ -125,6 +133,7 @@ class Client(ClientWithProject):
 
         if no_project:
             self.project = None
+
         self._connection = Connection(self, **kw_args)
         self._batch_stack = _LocalStack()
 
@@ -281,7 +290,13 @@ class Client(ClientWithProject):
         """
         return Batch(client=self)
 
-    def get_bucket(self, bucket_or_name, timeout=_DEFAULT_TIMEOUT):
+    def get_bucket(
+        self,
+        bucket_or_name,
+        timeout=_DEFAULT_TIMEOUT,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+    ):
         """API call: retrieve a bucket via a GET request.
 
         See
@@ -300,6 +315,14 @@ class Client(ClientWithProject):
                 Can also be passed as a tuple (connect_timeout, read_timeout).
                 See :meth:`requests.Session.request` documentation for details.
 
+            if_metageneration_match (Optional[long]):
+                Make the operation conditional on whether the
+                blob's current metageneration matches the given value.
+
+            if_metageneration_not_match (Optional[long]):
+                Make the operation conditional on whether the blob's
+                current metageneration does not match the given value.
+
         Returns:
             google.cloud.storage.bucket.Bucket
                 The bucket matching the name provided.
@@ -314,6 +337,7 @@ class Client(ClientWithProject):
             .. literalinclude:: snippets.py
                 :start-after: [START get_bucket]
                 :end-before: [END get_bucket]
+                :dedent: 4
 
             Get a bucket using a resource.
 
@@ -329,11 +353,21 @@ class Client(ClientWithProject):
 
         """
         bucket = self._bucket_arg_to_bucket(bucket_or_name)
-
-        bucket.reload(client=self, timeout=timeout)
+        bucket.reload(
+            client=self,
+            timeout=timeout,
+            if_metageneration_match=if_metageneration_match,
+            if_metageneration_not_match=if_metageneration_not_match,
+        )
         return bucket
 
-    def lookup_bucket(self, bucket_name, timeout=_DEFAULT_TIMEOUT):
+    def lookup_bucket(
+        self,
+        bucket_name,
+        timeout=_DEFAULT_TIMEOUT,
+        if_metageneration_match=None,
+        if_metageneration_not_match=None,
+    ):
         """Get a bucket by name, returning None if not found.
 
         You can use this if you would rather check for a None value
@@ -342,6 +376,7 @@ class Client(ClientWithProject):
         .. literalinclude:: snippets.py
             :start-after: [START lookup_bucket]
             :end-before: [END lookup_bucket]
+            :dedent: 4
 
         :type bucket_name: str
         :param bucket_name: The name of the bucket to get.
@@ -353,11 +388,24 @@ class Client(ClientWithProject):
             Can also be passed as a tuple (connect_timeout, read_timeout).
             See :meth:`requests.Session.request` documentation for details.
 
+        :type if_metageneration_match: long
+        :param if_metageneration_match: (Optional) Make the operation conditional on whether the
+                                        blob's current metageneration matches the given value.
+
+        :type if_metageneration_not_match: long
+        :param if_metageneration_not_match: (Optional) Make the operation conditional on whether the
+                                            blob's current metageneration does not match the given value.
+
         :rtype: :class:`google.cloud.storage.bucket.Bucket`
         :returns: The bucket matching the name provided or None if not found.
         """
         try:
-            return self.get_bucket(bucket_name, timeout=timeout)
+            return self.get_bucket(
+                bucket_name,
+                timeout=timeout,
+                if_metageneration_match=if_metageneration_match,
+                if_metageneration_not_match=if_metageneration_not_match,
+            )
         except NotFound:
             return None
 
@@ -423,6 +471,7 @@ class Client(ClientWithProject):
             .. literalinclude:: snippets.py
                 :start-after: [START create_bucket]
                 :end-before: [END create_bucket]
+                :dedent: 4
 
             Create a bucket using a resource.
 
@@ -504,7 +553,7 @@ class Client(ClientWithProject):
                 (Optional) The last byte in a range to be downloaded.
 
         Examples:
-            Download a blob using using a blob resource.
+            Download a blob using a blob resource.
 
             >>> from google.cloud import storage
             >>> client = storage.Client()
@@ -540,6 +589,9 @@ class Client(ClientWithProject):
         page_token=None,
         prefix=None,
         delimiter=None,
+        start_offset=None,
+        end_offset=None,
+        include_trailing_delimiter=None,
         versions=None,
         projection="noAcl",
         fields=None,
@@ -573,6 +625,24 @@ class Client(ClientWithProject):
                 (Optional) Delimiter, used with ``prefix`` to
                 emulate hierarchy.
 
+            start_offset (str):
+                (Optional) Filter results to objects whose names are
+                lexicographically equal to or after ``startOffset``. If
+                ``endOffset`` is also set, the objects listed will have names
+                between ``startOffset`` (inclusive) and ``endOffset``
+                (exclusive).
+
+            end_offset (str):
+                (Optional) Filter results to objects whose names are
+                lexicographically before ``endOffset``. If ``startOffset`` is
+                also set, the objects listed will have names between
+                ``startOffset`` (inclusive) and ``endOffset`` (exclusive).
+
+            include_trailing_delimiter (boolean):
+                (Optional) If true, objects that end in exactly one instance of
+                ``delimiter`` will have their metadata included in ``items`` in
+                addition to ``prefixes``.
+
             versions (bool):
                 (Optional) Whether object versions should be returned
                 as separate blobs.
@@ -599,6 +669,15 @@ class Client(ClientWithProject):
         Returns:
             Iterator of all :class:`~google.cloud.storage.blob.Blob`
             in this bucket matching the arguments.
+
+        Example:
+            List blobs in the bucket with user_project.
+
+            >>> from google.cloud import storage
+            >>> client = storage.Client()
+
+            >>> bucket = storage.Bucket("my-bucket-name", user_project='my-project')
+            >>> all_blobs = list(client.list_blobs(bucket))
         """
         bucket = self._bucket_arg_to_bucket(bucket_or_name)
         return bucket.list_blobs(
@@ -606,6 +685,9 @@ class Client(ClientWithProject):
             page_token=page_token,
             prefix=prefix,
             delimiter=delimiter,
+            start_offset=start_offset,
+            end_offset=end_offset,
+            include_trailing_delimiter=include_trailing_delimiter,
             versions=versions,
             projection=projection,
             fields=fields,
@@ -631,6 +713,7 @@ class Client(ClientWithProject):
         .. literalinclude:: snippets.py
             :start-after: [START list_buckets]
             :end-before: [END list_buckets]
+            :dedent: 4
 
         This implements "storage.buckets.list".
 
@@ -857,7 +940,7 @@ class Client(ClientWithProject):
         credentials=None,
         virtual_hosted_style=False,
         bucket_bound_hostname=None,
-        scheme=None,
+        scheme="http",
         service_account_email=None,
         access_token=None,
     ):
@@ -879,7 +962,9 @@ class Client(ClientWithProject):
         :param blob_name: Object name.
 
         :type expiration: Union[Integer, datetime.datetime, datetime.timedelta]
-        :param expiration: Policy expiration time.
+        :param expiration: Policy expiration time. If a ``datetime`` instance is
+                           passed without an explicit ``tzinfo`` set,  it will be
+                           assumed to be ``UTC``.
 
         :type conditions: list
         :param conditions: (Optional) List of POST policy conditions, which are
@@ -921,11 +1006,13 @@ class Client(ClientWithProject):
             Generate signed POST policy and upload a file.
 
             >>> from google.cloud import storage
+            >>> import pytz
             >>> client = storage.Client()
+            >>> tz = pytz.timezone('America/New_York')
             >>> policy = client.generate_signed_post_policy_v4(
                 "bucket-name",
                 "blob-name",
-                expiration=datetime.datetime(2020, 3, 17),
+                expiration=datetime.datetime(2020, 3, 17, tzinfo=tz),
                 conditions=[
                     ["content-length-range", 0, 255]
                 ],
@@ -947,6 +1034,7 @@ class Client(ClientWithProject):
             email=credentials.signer_email, datestamp=datestamp
         )
         required_conditions = [
+            {"bucket": bucket_name},
             {"key": blob_name},
             {"x-goog-date": timestamp},
             {"x-goog-credential": x_goog_credential},
@@ -1008,15 +1096,8 @@ class Client(ClientWithProject):
         # designate URL
         if virtual_hosted_style:
             url = "https://{}.storage.googleapis.com/".format(bucket_name)
-
         elif bucket_bound_hostname:
-            if ":" in bucket_bound_hostname:  # URL includes scheme
-                url = bucket_bound_hostname
-
-            else:  # scheme is given separately
-                url = "{scheme}://{host}/".format(
-                    scheme=scheme, host=bucket_bound_hostname
-                )
+            url = _bucket_bound_hostname_url(bucket_bound_hostname, scheme)
         else:
             url = "https://storage.googleapis.com/{}/".format(bucket_name)
 

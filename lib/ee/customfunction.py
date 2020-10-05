@@ -148,21 +148,22 @@ class CustomFunction(function.Function, encodable.Encodable):
     # within the body.
     def CountFunctions(expression):
       """Counts the number of custom functions in a serialized expression."""
-      count = 0
-      if isinstance(expression, dict):
-        if expression.get('type') == 'Function':
-          # Technically this allows false positives if one of the user
-          # dictionaries contains type=Function, but that does not matter
-          # for this use case, as we only care about determinism.
-          count += 1
-        else:
-          for sub_expression in expression.values():
-            count += CountFunctions(sub_expression)
-      elif isinstance(expression, (list, tuple)):
-        for sub_expression in expression:
-          count += CountFunctions(sub_expression)
-      return count
-    serialized_body = serializer.encode(body(*variables))
+      def CountNodes(nodes):
+        return sum([CountNode(node) for node in nodes])
+      def CountNode(node):
+        if 'functionDefinitionValue' in node:
+          return 1
+        elif 'arrayValue' in node:
+          return CountNodes(node['arrayValue']['values'])
+        elif 'dictionaryValue' in node:
+          return CountNodes(six.itervalues(node['dictionaryValue']['values']))
+        elif 'functionInvocationValue' in node:
+          fn = node['functionInvocationValue']
+          return CountNodes(six.itervalues(fn['arguments']))
+        return 0
+      return CountNodes(six.itervalues(expression['values']))
+
+    serialized_body = serializer.encode(body(*variables), for_cloud_api=True)
     base_name = '_MAPPING_VAR_%d_' % CountFunctions(serialized_body)
 
     # Update the vars and signature by the name.

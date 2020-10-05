@@ -1,22 +1,29 @@
 #!/usr/bin/env python
+# Lint as: python2, python3
 """Support utilities used by the Earth Engine command line interface.
 
 This module defines the Command class which is the base class of all
 the commands supported by the EE command line tool. It also defines
 the classes for configuration and runtime context management.
 """
+from __future__ import absolute_import
+from __future__ import division
 from __future__ import print_function
 import collections
 from datetime import datetime
 import json
 import os
 import re
+import tempfile
 import threading
 import time
 
-import urllib
 import httplib2
+import six
+from six.moves import input
+from six.moves import urllib
 
+from google.cloud import storage
 from google.oauth2.credentials import Credentials
 import ee
 
@@ -32,7 +39,7 @@ CONFIG_PARAMS = {
     'account': None,
     'private_key': None,
     'refresh_token': None,
-    'use_cloud_api': False,
+    'use_cloud_api': True,
     'cloud_api_key': None,
     'project': None,
 }
@@ -56,10 +63,12 @@ class CommandLineConfig(object):
   """
 
   def __init__(
-      self, config_file=None, service_account_file=None, use_cloud_api=False):
+      self, config_file=None, service_account_file=None, use_cloud_api=True,
+      project_override=None):
     if not config_file:
       config_file = os.environ.get(EE_CONFIG_FILE, DEFAULT_EE_CONFIG_FILE)
     self.config_file = config_file
+    self.project_override = project_override
     config = {}
     if os.path.exists(config_file):
       with open(config_file) as config_file_json:
@@ -75,15 +84,15 @@ class CommandLineConfig(object):
       for key, value in service.items():
         setattr(self, key, value)
 
-  def ee_init(self):
-    """Loads the EE credentials and initializes the EE client."""
+  def _get_credentials(self):
+    """Acquires credentials."""
     if self.service_account_file:
-      credentials = ee.ServiceAccountCredentials(
-          self.client_email, self.service_account_file)
+      return ee.ServiceAccountCredentials(self.client_email,
+                                          self.service_account_file)
     elif self.account and self.private_key:
-      credentials = ee.ServiceAccountCredentials(self.account, self.private_key)
+      return ee.ServiceAccountCredentials(self.account, self.private_key)
     elif self.refresh_token:
-      credentials = Credentials(
+      return Credentials(
           None,
           refresh_token=self.refresh_token,
           token_uri=ee.oauth.TOKEN_URI,
@@ -91,14 +100,41 @@ class CommandLineConfig(object):
           client_secret=ee.oauth.CLIENT_SECRET,
           scopes=ee.oauth.SCOPES)
     else:
-      credentials = 'persistent'
+      return 'persistent'
 
+  # TODO(user): We now have two ways of accessing GCS. storage.Client is
+  #            preferred and we should eventually migrate to just use that
+  #            instead of sending raw HTTP requests.
+  def create_gcs_helper(self):
+    """Creates a GcsHelper using the same credentials EE authorizes with."""
+    project = self._get_project()
+    if project is None:
+      raise ValueError('A project is required to access Cloud Storage. It '
+                       'can be set per-call by passing the --project flag or '
+                       'by setting the \'project\' parameter in your Earth '
+                       'Engine config file.')
+    creds = self._get_credentials()
+    if creds == 'persistent':
+      creds = ee.data.get_persistent_credentials()
+    return GcsHelper(
+        storage.Client(project=project, credentials=creds))
+
+  def _get_project(self):
+    # If a --project flag is passed into a command, it supercedes the one set
+    # by calling the set_project command.
+    if self.project_override:
+      return self.project_override
+    else:
+      return self.project
+
+  def ee_init(self):
+    """Loads the EE credentials and initializes the EE client."""
     ee.Initialize(
-        credentials=credentials,
+        credentials=self._get_credentials(),
         opt_url=self.url,
         use_cloud_api=self.use_cloud_api,
         cloud_api_key=self.cloud_api_key,
-        project=self.project)
+        project=self._get_project())
 
   def save(self):
     config = {}
@@ -110,10 +146,87 @@ class CommandLineConfig(object):
       json.dump(config, output_file)
 
 
+class GcsHelper(object):
+  """A helper for manipulating files in GCS."""
+
+  def __init__(self, client):
+    self.client = client
+
+  @staticmethod
+  def _split_gcs_path(path):
+    m = re.search('gs://([a-z0-9-_.]*)/(.*)', path, re.IGNORECASE)
+    if not m:
+      raise ValueError('\'{}\' is not a valid GCS path'.format(path))
+
+    return m.groups()
+
+  @staticmethod
+  def _canonicalize_dir_path(path):
+    return path.strip().rstrip('/')
+
+  def _get_blobs_under_path(self, path):
+    bucket, prefix = GcsHelper._split_gcs_path(
+        GcsHelper._canonicalize_dir_path(path))
+    return self.client.get_bucket(bucket).list_blobs(prefix=prefix + '/')
+
+  def check_gcs_dir_within_size(self, path, max_bytes):
+    blobs = self._get_blobs_under_path(path)
+    total_bytes = 0
+    for blob in blobs:
+      total_bytes += blob.size
+      if total_bytes > max_bytes:
+        raise ValueError('Size of files in \'{}\' exceeds allowed size: '
+                         '{} > {}.'.format(path, total_bytes, max_bytes))
+    if total_bytes == 0:
+      raise ValueError('No files found at \'{}\'.'.format(path))
+
+  def download_dir_to_temp(self, path):
+    """Downloads recursively the contents at a GCS path to a temp directory."""
+    canonical_path = GcsHelper._canonicalize_dir_path(path)
+    blobs = self._get_blobs_under_path(canonical_path)
+    temp_dir = tempfile.mkdtemp()
+
+    _, prefix = GcsHelper._split_gcs_path(canonical_path)
+    for blob in blobs:
+      stripped_name = blob.name[len(prefix):]
+      if stripped_name == '/':
+        continue
+
+      output_path = temp_dir + six.ensure_str(stripped_name)
+      dir_path = os.path.dirname(output_path)
+      if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
+      if output_path[-1:] != '/':
+        blob.download_to_filename(output_path)
+
+    return temp_dir
+
+  def upload_dir_to_bucket(self, source_path, dest_path):
+    """Uploads a directory to cloud storage."""
+    canonical_path = GcsHelper._canonicalize_dir_path(source_path)
+
+    files = list()
+    for dirpath, _, filenames in os.walk(canonical_path):
+      files += [os.path.join(dirpath, f) for f in filenames]
+
+    bucket, prefix = GcsHelper._split_gcs_path(
+        GcsHelper._canonicalize_dir_path(dest_path))
+    bucket_client = self.client.get_bucket(bucket)
+
+    for f in files:
+      relative_file = f[len(canonical_path):]
+      bucket_client.blob(prefix + relative_file).upload_from_filename(f)
+
+
+def is_gcs_path(path):
+  return six.ensure_str(path.strip()).startswith('gs://')
+
+
 def query_yes_no(msg):
   print('%s (y/n)' % msg)
   while True:
-    confirm = raw_input().lower()
+    confirm = input().lower()
     if confirm == 'y':
       return True
     elif confirm == 'n':
@@ -123,7 +236,10 @@ def query_yes_no(msg):
 
 
 def truncate(string, length):
-  return (string[:length] + '..') if len(string) > length else string
+  if len(string) > length:
+    return six.ensure_str(string[:length]) + '..'
+  else:
+    return string
 
 
 def wait_for_task(task_id, timeout, log_progress=True):
@@ -207,8 +323,8 @@ def expand_gcs_wildcards(source_files):
     # of items returned by that API call
 
     # Capture the part of the path after gs:// and before the first /
-    bucket_regex = 'gs://([a-z0-9_.-]+)(/.*)'
-    bucket_match = re.match(bucket_regex, source)
+    bucket_regex = 'gs://([a-z0-9_.-]+)/(.*)'
+    bucket_match = re.match(bucket_regex, six.ensure_str(source))
     if bucket_match:
       bucket, rest = bucket_match.group(1, 2)
     else:
@@ -219,7 +335,7 @@ def expand_gcs_wildcards(source_files):
     bucket_files = _gcs_ls(bucket, prefix)
 
     # Regex to match the source path with wildcards expanded
-    regex = re.escape(source).replace(r'\*', '[^/]*') + '$'
+    regex = six.ensure_str(re.escape(source)).replace(r'\*', '[^/]*') + '$'
     for gcs_path in bucket_files:
       if re.match(regex, gcs_path):
         yield gcs_path
@@ -238,7 +354,7 @@ def _gcs_ls(bucket, prefix=''):
       If there is an error in accessing the specified bucket
   """
 
-  base_url = 'https://www.googleapis.com/storage/v1/b/%s/o'%bucket
+  base_url = 'https://storage.googleapis.com/storage/v1/b/%s/o' % bucket
   method = 'GET'
   http = ee.data.authorizeHttp(httplib2.Http(0))
   next_page_token = None
@@ -251,14 +367,13 @@ def _gcs_ls(bucket, prefix=''):
       params['pageToken'] = next_page_token
     if prefix:
       params['prefix'] = prefix
-    payload = urllib.urlencode(params)
+    payload = urllib.parse.urlencode(params)
 
     url = base_url + '?' + payload
     try:
       response, content = http.request(url, method=method)
     except httplib2.HttpLib2Error as e:
-      raise ee.ee_exception.EEException(
-          'Unexpected HTTP error: %s' % e.message)
+      raise ee.ee_exception.EEException('Unexpected HTTP error: %s' % str(e))
 
     if response.status < 100 or response.status >= 300:
       raise ee.ee_exception.EEException(('Error retrieving bucket %s;'

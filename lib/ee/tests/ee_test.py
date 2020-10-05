@@ -33,14 +33,14 @@ class EETestCase(apitestcase.ApiTestCase):
     self.assertFalse(ee.Image._initialized)
 
     # Verify that ee.Initialize() sets the URL and initializes classes.
-    ee.Initialize(None, 'foo')
+    ee.Initialize(None, 'foo', use_cloud_api=False)
     self.assertTrue(ee.data._initialized)
     self.assertEqual(ee.data._api_base_url, 'foo/api')
     self.assertEqual(ee.ApiFunction._api, {})
     self.assertTrue(ee.Image._initialized)
 
     # Verify that ee.Initialize(None) does not override custom URLs.
-    ee.Initialize(None)
+    ee.Initialize(None, use_cloud_api=False)
     self.assertTrue(ee.data._initialized)
     self.assertEqual(ee.data._api_base_url, 'foo/api')
 
@@ -72,7 +72,7 @@ class EETestCase(apitestcase.ApiTestCase):
         raise Exception('Unexpected API call to %s with %s' % (path, params))
     ee.data.send_ = MockSend
 
-    ee.Initialize(None)
+    ee.Initialize(None, use_cloud_api=False)
     image1 = ee.Image(1)
     image2 = ee.Image(2)
     expected = ee.Image(ee.ComputedObject(
@@ -175,7 +175,7 @@ class EETestCase(apitestcase.ApiTestCase):
         }
     ee.data.send_ = MockSend
 
-    ee.Initialize(None)
+    ee.Initialize(None, use_cloud_api=False)
 
     # Verify that the expected classes got generated.
     self.assertTrue(hasattr(ee, 'Array'))
@@ -248,7 +248,7 @@ class EETestCase(apitestcase.ApiTestCase):
         }
 
     ee.data.send_ = MockSend
-    ee.Initialize(None)
+    ee.Initialize(None, use_cloud_api=False)
 
     # Try to cast something that's already of the right class.
     x = ee.Foo('argument')
@@ -356,6 +356,7 @@ class EETestCase(apitestcase.ApiTestCase):
             }
         }
     ee.data.send_ = MockSend
+    ee.data._use_cloud_api = False
 
     ee.ApiFunction.importApi(lambda: None, 'Quux', 'Quux')
     ee._InitializeUnboundMethods()
@@ -403,11 +404,18 @@ class EETestCase(apitestcase.ApiTestCase):
                 'args': [],
                 'description': baz,
                 'returns': 'Object'
+            },
+            'Image.newBaz': {
+                'type': 'Algorithm',
+                'args': [],
+                'description': baz,
+                'returns': 'Object',
+                'preview': True
             }
         }
     ee.data.send_ = MockSend
 
-    ee.Initialize(None)
+    ee.Initialize(None, use_cloud_api=False)
 
     # The initialisation shouldn't blow up.
     self.assertTrue(callable(ee.Algorithms.Foo))
@@ -421,6 +429,8 @@ class EETestCase(apitestcase.ApiTestCase):
       self.assertEqual(ee.Algorithms.Foo.__doc__, foo)
       self.assertIn(foo, ee.Image.oldBar.__doc__)
       self.assertIn('DEPRECATED: Causes fire', ee.Image.oldBar.__doc__)
+      self.assertIn('PREVIEW: This function is preview or internal only.',
+                    ee.Image.newBaz.__doc__)
       self.assertEqual(ee.Image.bar.__doc__, '\n\nArgs:\n  bar: ' + bar)
       self.assertEqual(ee.Image.baz.__doc__, baz)
     else:
@@ -428,6 +438,8 @@ class EETestCase(apitestcase.ApiTestCase):
                        '\xef\xac\x80\xc3\xb6\xc7\xab')
       self.assertIn('\xef\xac\x80\xc3\xb6\xc7\xab', ee.Image.oldBar.__doc__)
       self.assertIn('DEPRECATED: Causes fire', ee.Image.oldBar.__doc__)
+      self.assertIn('PREVIEW: This function is preview or internal only.',
+                    ee.Image.newBaz.__doc__)
       self.assertEqual(ee.Image.bar.__doc__, '\n\nArgs:\n  bar: b\xc3\xa4r')
       self.assertEqual(ee.Image.baz.__doc__, 'b\xc3\xa2\xc3\x9f')
 

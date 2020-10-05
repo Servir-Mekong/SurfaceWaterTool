@@ -25,7 +25,10 @@ class CommandDispatcher(commands.Dispatcher):
   COMMANDS = commands.EXTERNAL_COMMANDS
 
 
-def main():
+def _run_command(*argv):
+  """Runs an eecli command."""
+  _ = argv
+
   # Set the program name to 'earthengine' for proper help text display.
   parser = argparse.ArgumentParser(
       prog='earthengine', description='Earth Engine Command Line Interface.')
@@ -45,6 +48,10 @@ def main():
       help='Disables the new experimental EE Cloud API backend.',
       action='store_false',
       dest='use_cloud_api')
+  parser.add_argument(
+      '--project',
+      help='Specifies a Google Cloud Platform Project id to override the call.',
+      dest='project_override')
   parser.set_defaults(use_cloud_api=True)
 
   dispatcher = CommandDispatcher(parser)
@@ -56,13 +63,15 @@ def main():
 
   args = parser.parse_args()
   config = utils.CommandLineConfig(
-      args.ee_config, args.service_account_file, args.use_cloud_api)
+      args.ee_config, args.service_account_file, args.use_cloud_api,
+      args.project_override
+  )
 
   # TODO(user): Remove this warning once things are officially launched
   #  and the old API is removed.
   if args.use_cloud_api:
     print('Running command using Cloud API.  Set --no-use_cloud_api to '
-          'go back to using the API')
+          'go back to using the API\n')
 
   # Catch EEException errors, which wrap server-side Earth Engine
   # errors, and print the error message without the irrelevant local
@@ -73,6 +82,25 @@ def main():
   except ee.EEException as e:
     print(e)
     sys.exit(1)
+
+
+def _get_tensorflow():
+  try:
+    # pylint: disable=g-import-not-at-top
+    import tensorflow.compat.v1 as tf
+    return tf
+  except ImportError:
+    return None
+
+
+def main():
+  tf_module = _get_tensorflow()
+  if tf_module:
+    # We need InitGoogle initialization since TensorFlow expects it.
+    tf_module.app.run(_run_command, argv=sys.argv[:1])
+  else:
+    _run_command()
+
 
 if __name__ == '__main__':
   main()

@@ -3,6 +3,8 @@
 
 
 
+import mock
+
 import unittest
 
 import ee
@@ -29,13 +31,16 @@ class FeatureCollectionTestCase(apitestcase.ApiTestCase):
 
     geometry = ee.Geometry.Point(1, 2)
     feature = ee.Feature(geometry)
+    geo_json = {'type': 'FeatureCollection', 'features': [geometry.toGeoJSON()]}
     from_geometries = ee.FeatureCollection([geometry])
     from_single_geometry = ee.FeatureCollection(geometry)
     from_features = ee.FeatureCollection([feature])
     from_single_feature = ee.FeatureCollection(feature)
+    from_geo_json = ee.FeatureCollection(geo_json)
     self.assertEqual(from_geometries, from_single_geometry)
     self.assertEqual(from_geometries, from_features)
     self.assertEqual(from_geometries, from_single_feature)
+    self.assertEqual(from_geometries, from_geo_json)
     self.assertEqual(ee.ApiFunction.lookup('Collection'), from_geometries.func)
     self.assertEqual({'features': [feature]}, from_geometries.args)
 
@@ -83,6 +88,21 @@ class FeatureCollectionTestCase(apitestcase.ApiTestCase):
     self.assertEqual(
         ee.FeatureCollection('test7').getDownloadUrl('csv'),
         ee.FeatureCollection('test7').getDownloadURL('csv'))
+
+  def testDownloadTableWithCloudApi(self):
+    cloud_api_resource = mock.MagicMock()
+    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
+      create_table_response = {'name': 'table_name'}
+      cloud_api_resource.projects().tables().create().execute.return_value = (
+          create_table_response)
+      fc = ee.FeatureCollection([ee.Feature(None, {'foo': 'bar'})])
+      result = ee.data.getTableDownloadId({
+          'table': fc, 'selectors': 'foo', 'format': 'CSV',
+      })
+      url = ee.data.makeTableDownloadUrl(result)
+
+      self.assertDictEqual(result, {'docid': 'table_name', 'token': ''})
+      self.assertEqual(url, '/v1alpha/table_name:getFeatures')
 
   def testSelect(self):
     def equals(c1, c2):

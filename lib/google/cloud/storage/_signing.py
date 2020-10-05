@@ -82,7 +82,7 @@ def get_signed_query_params_v2(credentials, expiration, string_to_sign):
     service_account_name = credentials.signer_email
     return {
         "GoogleAccessId": service_account_name,
-        "Expires": str(expiration),
+        "Expires": expiration,
         "Signature": signature,
     }
 
@@ -91,7 +91,9 @@ def get_expiration_seconds_v2(expiration):
     """Convert 'expiration' to a number of seconds in the future.
 
     :type expiration: Union[Integer, datetime.datetime, datetime.timedelta]
-    :param expiration: Point in time when the signed URL should expire.
+    :param expiration: Point in time when the signed URL should expire. If
+                       a ``datetime`` instance is passed without an explicit
+                       ``tzinfo`` set,  it will be assumed to be ``UTC``.
 
     :raises: :exc:`TypeError` when expiration is not a valid type.
 
@@ -123,7 +125,9 @@ def get_expiration_seconds_v4(expiration):
     """Convert 'expiration' to a number of seconds offset from the current time.
 
     :type expiration: Union[Integer, datetime.datetime, datetime.timedelta]
-    :param expiration: Point in time when the signed URL should expire.
+    :param expiration: Point in time when the signed URL should expire. If
+                       a ``datetime`` instance is passed without an explicit
+                       ``tzinfo`` set,  it will be assumed to be ``UTC``.
 
     :raises: :exc:`TypeError` when expiration is not a valid type.
     :raises: :exc:`ValueError` when expiration is too large.
@@ -153,9 +157,7 @@ def get_expiration_seconds_v4(expiration):
 
     if seconds > SEVEN_DAYS:
         raise ValueError(
-            "Max allowed expiration interval is seven days (%d seconds)".format(
-                SEVEN_DAYS
-            )
+            "Max allowed expiration interval is seven days {}".format(SEVEN_DAYS)
         )
 
     return seconds
@@ -301,7 +303,9 @@ def generate_signed_url_v2(
                      Caller should have already URL-encoded the value.
 
     :type expiration: Union[Integer, datetime.datetime, datetime.timedelta]
-    :param expiration: Point in time when the signed URL should expire.
+    :param expiration: Point in time when the signed URL should expire. If
+                       a ``datetime`` instance is passed without an explicit
+                       ``tzinfo`` set,  it will be assumed to be ``UTC``.
 
     :type api_access_endpoint: str
     :param api_access_endpoint: (Optional) URI base. Defaults to empty string.
@@ -384,7 +388,7 @@ def generate_signed_url_v2(
         signature = _sign_message(string_to_sign, access_token, service_account_email)
         signed_query_params = {
             "GoogleAccessId": service_account_email,
-            "Expires": str(expiration),
+            "Expires": expiration_stamp,
             "Signature": signature,
         }
     else:
@@ -463,7 +467,9 @@ def generate_signed_url_v4(
                      Caller should have already URL-encoded the value.
 
     :type expiration: Union[Integer, datetime.datetime, datetime.timedelta]
-    :param expiration: Point in time when the signed URL should expire.
+    :param expiration: Point in time when the signed URL should expire. If
+                       a ``datetime`` instance is passed without an explicit
+                       ``tzinfo`` set,  it will be assumed to be ``UTC``.
 
     :type api_access_endpoint: str
     :param api_access_endpoint: (Optional) URI base. Defaults to
@@ -662,14 +668,14 @@ def _sign_message(message, access_token, service_account_email):
     message = _helpers._to_bytes(message)
 
     method = "POST"
-    url = "https://iam.googleapis.com/v1/projects/-/serviceAccounts/{}:signBlob?alt=json".format(
+    url = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{}:signBlob?alt=json".format(
         service_account_email
     )
     headers = {
         "Authorization": "Bearer " + access_token,
         "Content-type": "application/json",
     }
-    body = json.dumps({"bytesToSign": base64.b64encode(message).decode("utf-8")})
+    body = json.dumps({"payload": base64.b64encode(message).decode("utf-8")})
 
     request = requests.Request()
     response = request(url=url, method=method, body=body, headers=headers)
@@ -680,7 +686,7 @@ def _sign_message(message, access_token, service_account_email):
         )
 
     data = json.loads(response.data.decode("utf-8"))
-    return data["signature"]
+    return data["signedBlob"]
 
 
 def _url_encode(query_params):

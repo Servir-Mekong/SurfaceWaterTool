@@ -3,13 +3,21 @@
 
 import httplib2
 import mock
+
+
 from six.moves import urllib
 import unittest
 import ee
 from ee import apitestcase
+import ee.image as image
 
 
 class DataTest(unittest.TestCase):
+
+  def setUp(self):
+    super(DataTest, self).setUp()
+    # Default this to false.  Eventually this should default to true.
+    ee.data._use_cloud_api = False
 
   def testGetTaskList(self):
 
@@ -100,7 +108,8 @@ class DataTest(unittest.TestCase):
     with DoStubHttp(418, 'text/html', '<html>'):
       with self.assertRaises(ee.ee_exception.EEException) as cm:
         ee.data.send_('/foo', {})
-      self.assertEqual('Server returned HTTP code: 418', str(cm.exception))
+      self.assertEqual('Server returned HTTP code: 418. Reason: Ok.',
+                       str(cm.exception))
 
   def testJson200Error(self):
     with DoStubHttp(200, 'application/json',
@@ -140,7 +149,8 @@ class DataTest(unittest.TestCase):
                     '{"error": {"code": 400, "message": "bar"}}'):
       with self.assertRaises(ee.ee_exception.EEException) as cm:
         ee.data.send_('/foo', {}, opt_raw=True)
-      self.assertEqual(u'Server returned HTTP code: 400', str(cm.exception))
+      self.assertEqual(u'Server returned HTTP code: 400. Reason: Ok.',
+                       str(cm.exception))
 
   def testRaw200Error(self):
     """Raw shouldn't be parsed, so the error-in-200 shouldn't be noticed.
@@ -179,12 +189,32 @@ class DataTest(unittest.TestCase):
     with DoProfileStubHttp(self, False):
       ee.data.send_('/foo', {})
 
+  def testSetAssetProperties(self):
+    mock_http = mock.MagicMock(httplib2.Http)
+    with apitestcase.UsingCloudApi(mock_http=mock_http), mock.patch.object(
+        ee.data, 'updateAsset', autospec=True) as mock_update_asset:
+      ee.data.setAssetProperties(
+          'foo', {'mYPropErTy': 'Value', 'system:time_start': 1})
+      asset_id = mock_update_asset.call_args[0][0]
+      self.assertEqual(asset_id, 'foo')
+      asset = mock_update_asset.call_args[0][1]
+      self.assertEqual(
+          asset['properties'],
+          {'mYPropErTy': 'Value', 'system:time_start': 1})
+      update_mask = mock_update_asset.call_args[0][2]
+      self.assertSetEqual(
+          set(update_mask), set([
+              'properties.\"mYPropErTy\"',
+              'properties.\"system:time_start\"'
+          ]))
+
   def testListAssets(self):
     cloud_api_resource = mock.MagicMock()
     with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
       mock_result = {'assets': [{'path': 'id1', 'type': 'type1'}]}
       cloud_api_resource.projects().assets().listAssets(
       ).execute.return_value = mock_result
+      cloud_api_resource.projects().assets().listAssets_next.return_value = None
       actual_result = ee.data.listAssets({'p': 'q'})
       cloud_api_resource.projects().assets().listAssets().\
         execute.assert_called_once()
@@ -193,9 +223,10 @@ class DataTest(unittest.TestCase):
   def testListImages(self):
     cloud_api_resource = mock.MagicMock()
     with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
-      mock_result = {'assets': [{'path': 'id1', 'type': 'type1'}]}
+      mock_result = {'images': [{'path': 'id1', 'type': 'type1'}]}
       cloud_api_resource.projects().assets().listImages(
       ).execute.return_value = mock_result
+      cloud_api_resource.projects().assets().listImages_next.return_value = None
       actual_result = ee.data.listImages({'p': 'q'})
       cloud_api_resource.projects().assets().listImages(
       ).execute.assert_called_once()
@@ -228,6 +259,41 @@ class DataTest(unittest.TestCase):
           **expected_params)
       self.assertEqual(expected_result, actual_result)
 
+  def testGetListAssetRootViaCloudApi(self):
+    cloud_api_resource = mock.MagicMock()
+    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
+      mock_result = {'assets': [{'name': 'id1', 'type': 'IMAGE_COLLECTION'}]}
+      cloud_api_resource.projects().listAssets(
+      ).execute.return_value = mock_result
+      actual_result = ee.data.getList(
+          {'id': 'projects/my-project/assets/', 'num': 3})
+      expected_params = {
+
+          'parent': 'projects/my-project',
+          'pageSize': 3
+      }
+      expected_result = [{'id': 'id1', 'type': 'ImageCollection'}]
+      cloud_api_resource.projects().listAssets.assert_called_with(
+          **expected_params)
+      self.assertEqual(expected_result, actual_result)
+
+  def testGetListAssetRootViaCloudApiNoSlash(self):
+    cloud_api_resource = mock.MagicMock()
+    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
+      mock_result = {'assets': [{'name': 'id1', 'type': 'IMAGE_COLLECTION'}]}
+      cloud_api_resource.projects().listAssets(
+      ).execute.return_value = mock_result
+      actual_result = ee.data.getList(
+          {'id': 'projects/my-project/assets', 'num': 3})
+      expected_params = {
+          'parent': 'projects/my-project',
+          'pageSize': 3
+      }
+      expected_result = [{'id': 'id1', 'type': 'ImageCollection'}]
+      cloud_api_resource.projects().listAssets.assert_called_with(
+          **expected_params)
+      self.assertEqual(expected_result, actual_result)
+
   def testComplexGetListViaCloudApi(self):
     cloud_api_resource = mock.MagicMock()
     with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
@@ -242,18 +308,81 @@ class DataTest(unittest.TestCase):
       actual_result = ee.data.getList({
           'id': 'glam',
           'num': 3,
-          'starttime': 3612345
+          'starttime': 3612345,
+          'filter': 'foo'
       })
       expected_params = {
           'parent': 'projects/earthengine-public/assets/glam',
           'pageSize': 3,
           'startTime': '1970-01-01T01:00:12.345000Z',
-          'fields': 'images(name)'
+          'view': 'BASIC',
+          'filter': 'foo'
       }
       expected_result = [{'id': 'id1', 'type': 'Image'}]
       cloud_api_resource.projects().assets().listImages.assert_called_with(
           **expected_params)
       self.assertEqual(expected_result, actual_result)
+
+  # The Cloud API context manager does not mock getAlgorithms, so it's done
+  # separately here.
+  @mock.patch.object(
+      ee.data,
+      'getAlgorithms',
+      return_value=apitestcase.BUILTIN_FUNCTIONS,
+      autospec=True)
+  def testGetDownloadId(self, _):
+    cloud_api_resource = mock.MagicMock()
+    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
+      mock_result = {'name': 'projects/earthengine-legacy/thumbnails/DOCID'}
+      cloud_api_resource.projects().thumbnails().create(
+      ).execute.return_value = mock_result
+      actual_result = ee.data.getDownloadId({
+          'image': image.Image('my-image'),
+          'name': 'dummy'
+      })
+      cloud_api_resource.projects().thumbnails().create(
+      ).execute.assert_called_once()
+      self.assertEqual(
+          {
+              'docid': 'projects/earthengine-legacy/thumbnails/DOCID',
+              'token': ''
+          }, actual_result)
+
+  def testGetDownloadId_withBandList(self):
+    cloud_api_resource = mock.MagicMock()
+    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
+      mock_result = {'name': 'projects/earthengine-legacy/thumbnails/DOCID'}
+      cloud_api_resource.projects().thumbnails().create(
+      ).execute.return_value = mock_result
+      actual_result = ee.data.getDownloadId({
+          'image': image.Image('my-image'),
+          'name': 'dummy',
+          'bands': ['B1', 'B2', 'B3']
+      })
+      cloud_api_resource.projects().thumbnails().create(
+      ).execute.assert_called_once()
+      self.assertEqual(
+          {
+              'docid': 'projects/earthengine-legacy/thumbnails/DOCID',
+              'token': ''
+          }, actual_result)
+
+  def testGetDownloadId_withImageID(self):
+    cloud_api_resource = mock.MagicMock()
+    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
+      with self.assertRaisesRegex(ee.ee_exception.EEException,
+                                  '^Image ID string is not supported.'):
+        ee.data.getDownloadId({'id': 'my-image', 'name': 'dummy'})
+
+  def testGetDownloadId_withSerializedImage(self):
+    cloud_api_resource = mock.MagicMock()
+    with apitestcase.UsingCloudApi(cloud_api_resource=cloud_api_resource):
+      with self.assertRaisesRegex(ee.ee_exception.EEException,
+                                  '^Image as JSON string not supported.'):
+        ee.data.getDownloadId({
+            'image': image.Image('my-image').serialize(),
+            'name': 'dummy'
+        })
 
   def testCloudProfilingEnabled(self):
     seen = []
@@ -275,7 +404,7 @@ class DataTest(unittest.TestCase):
     mock_http.request.return_value = (httplib2.Response({'status': 400}),
                                       b'{"error": {"message": "errorly"} }')
     with apitestcase.UsingCloudApi(mock_http=mock_http):
-      with self.assertRaisesRegexp(ee.ee_exception.EEException, '^errorly$'):
+      with self.assertRaisesRegex(ee.ee_exception.EEException, '^errorly$'):
         ee.data.listImages({'parent': 'projects/earthengine-public/assets/q'})
 
 
